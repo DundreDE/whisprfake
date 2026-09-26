@@ -3,7 +3,7 @@
 #   cd packaging/arch && makepkg -si
 # Per-user setup afterwards (models, Hyprland, omarchy-shell, systemd): whisprfake-setup
 pkgname=whisprfake-git
-pkgver=0.1.0.r8.g2d2dca9
+pkgver=0.1.0.r9.g430ac6e
 pkgrel=1
 pkgdesc="Local Wispr Flow clone: hold Ctrl+Super, speak, get clean text – ASR and LLM run on your GPU"
 arch=('x86_64')
