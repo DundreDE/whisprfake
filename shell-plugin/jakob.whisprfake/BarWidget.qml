@@ -11,6 +11,7 @@ BarWidget {
   readonly property var svc: bar?.shell?.firstPartyServiceFor("jakob.whisprfake")
   readonly property string phase: svc ? svc.phase : "idle"
   readonly property bool online: svc ? svc.connected : false
+  readonly property bool meeting: svc ? svc.meetingRecording : false
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -19,11 +20,12 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: !root.online ? "󰍭" : (root.phase === "recording" ? "󰍬" : (root.phase === "processing" ? "󰦖" : "󰍬"))
-    active: root.phase === "recording"
+    text: !root.online ? "󰍭" : root.meeting ? "󰑊" : (root.phase === "processing" ? "󰦖" : "󰍬")
+    active: root.phase === "recording" || root.meeting
     dimmed: !root.online
     slotSize: Style.bar.statusSlot
     tooltipText: !root.online ? "whisprfake: Dienst nicht erreichbar"
+                 : root.meeting ? "whisprfake – Meeting wird aufgenommen (Menü › Diktat › beenden)"
                  : "whisprfake – Ctrl+Super halten zum Diktieren\nLinks: Menü · Mitte: freihändig · Rechts: Hub"
     onPressed: function(b) {
       if (!root.bar) return

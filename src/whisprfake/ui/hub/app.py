@@ -92,14 +92,24 @@ class HubWindow(Adw.ApplicationWindow):
                 self.current().refresh()
 
 
+    def show_page(self, name: str) -> None:
+        for i, p in enumerate(self.pages):
+            if p.title.lower() == name.lower():
+                self.sidebar.select_row(self.sidebar.get_row_at_index(i))
+
+
 class HubApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
 
-    def do_activate(self):
+    def do_command_line(self, cmdline):
+        args = cmdline.get_arguments()[1:]
         win = self.props.active_window or HubWindow(self)
+        if "--page" in args:
+            win.show_page(args[args.index("--page") + 1])
         win.present()
+        return 0
 
 
-def main() -> None:
-    HubApp().run(sys.argv[:1])
+def main(argv: list[str] | None = None) -> None:
+    HubApp().run([sys.argv[0], *(argv or [])])

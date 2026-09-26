@@ -12,7 +12,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="whisprfake", description="Local Wispr Flow for Hyprland")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daemon", help="run the background service")
-    sub.add_parser("hub", help="open the Hub (history, dictionary, snippets, settings)")
+    hp = sub.add_parser("hub", help="open the Hub (history, dictionary, snippets, settings)")
+    hp.add_argument("--page", help="Übersicht, Verlauf, Wörterbuch, Snippets, Styles, Transforms, Notizen, Meetings, Einstellungen")
     sp = sub.add_parser("scratchpad", help="open the floating scratchpad")
     sp.add_argument("--note", type=int, help="open a specific note")
     sp.add_argument("--toggle", action="store_true", help="close if already focused")
@@ -43,7 +44,7 @@ def main() -> None:
     elif a.cmd == "hub":
         from .ui.hub.app import main as hub
 
-        hub()
+        hub(["--page", a.page] if a.page else [])
     elif a.cmd == "scratchpad":
         from .ui.scratchpad.app import main as pad
 

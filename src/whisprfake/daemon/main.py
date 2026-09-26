@@ -95,7 +95,8 @@ class Daemon:
     async def run(self) -> None:
         self.loop = asyncio.get_running_loop()
         await self.ipc.start()
-        self.ipc.snapshot = lambda: [self._state_event()]
+        self.ipc.snapshot = lambda: [self._state_event(),
+                                     {"event": "meeting_changed", "recording": self.notetaker.recording}]
         if self.cfg.privacy.context_awareness:
             await asyncio.to_thread(set_a11y_enabled, True)
             self.focus.start()

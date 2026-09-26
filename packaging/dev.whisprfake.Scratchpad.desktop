@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=whisprfake Scratchpad
+Comment=Schwebender Notizblock zum Diktieren
+Exec=whisprfake scratchpad
+Icon=accessories-text-editor
+Categories=Utility;
+StartupWMClass=dev.whisprfake.Scratchpad

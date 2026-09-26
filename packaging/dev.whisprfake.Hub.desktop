@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=whisprfake
+GenericName=Spracheingabe
+Comment=Lokales Diktieren wie Wispr Flow – Verlauf, Wörterbuch, Einstellungen
+Exec=whisprfake hub
+Icon=audio-input-microphone
+Categories=Utility;Accessibility;
+Keywords=dictation;voice;speech;diktat;sprache;wispr;
+StartupWMClass=dev.whisprfake.Hub

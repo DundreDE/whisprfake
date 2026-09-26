@@ -48,6 +48,17 @@ class Audio(BaseModel):
     silence_autostop_s: int = 90
 
 
+def _find_bin(name: str) -> str:
+    """Prefer a user build (packaging/install.sh), fall back to the Arch package location."""
+    for base in (Path.home() / ".local/opt/src", Path("/opt/whisprfake")):
+        sub = "whisper.cpp" if name == "whisper-server" else "llama.cpp"
+        p = base / sub / "build/bin" / name
+        if p.exists():
+            return str(p)
+    return str(Path.home() / ".local/opt/src" / ("whisper.cpp" if name == "whisper-server" else "llama.cpp")
+               / "build/bin" / name)
+
+
 class ASR(BaseModel):
     engine: Literal["whisper", "parakeet", "qwen3asr", "parakeet_onnx"] = "parakeet"  # ~0.1 s on the RX 6800
     languages: list[str] = ["de", "en"]
@@ -55,8 +66,8 @@ class ASR(BaseModel):
     parakeet_model: str = "ggml-parakeet-tdt-0.6b-v3-f16.bin"
     qwen3asr_model: str = "Qwen3-ASR-1.7B-Q8_0.gguf"
     qwen3asr_mmproj: str = "mmproj-Qwen3-ASR-1.7B-Q8_0.gguf"
-    whisper_server_bin: str = str(Path.home() / ".local/opt/src/whisper.cpp/build/bin/whisper-server")
-    llama_server_bin: str = str(Path.home() / ".local/opt/src/llama.cpp/build/bin/llama-server")
+    whisper_server_bin: str = Field(default_factory=lambda: _find_bin("whisper-server"))
+    llama_server_bin: str = Field(default_factory=lambda: _find_bin("llama-server"))
     port: int = 8931
 
 

@@ -1,0 +1,58 @@
+# Maintainer: Jakob Kordel <jako.kordel@gmail.com>
+# Local Wispr-Flow-style dictation for Arch/Omarchy. Build from a checkout:
+#   cd packaging/arch && makepkg -si
+# Per-user setup afterwards (models, Hyprland, omarchy-shell, systemd): whisprfake-setup
+pkgname=whisprfake-git
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Local Wispr Flow clone: hold Ctrl+Super, speak, get clean text – ASR and LLM run on your GPU"
+arch=('x86_64')
+url="https://github.com/jakobkordel/whisprfake"
+license=('MIT')
+depends=('python' 'python-gobject' 'gtk4' 'libadwaita' 'gtk4-layer-shell' 'at-spi2-core' 'portaudio'
+         'wl-clipboard' 'wtype' 'libnotify' 'pipewire' 'pipewire-pulse' 'libpulse' 'vulkan-icd-loader'
+         'ollama' 'hyprland')
+makedepends=('git' 'cmake' 'uv' 'vulkan-headers' 'spirv-headers' 'shaderc')
+optdepends=('ollama-rocm: AMD GPU acceleration for the LLM'
+            'ollama-cuda: NVIDIA GPU acceleration for the LLM'
+            'omarchy: Flow Bar, bar widget and menu integration')
+options=('!strip' '!debug')
+source=("whisprfake::git+file://${startdir}/../.."
+        "whisper.cpp::git+https://github.com/ggml-org/whisper.cpp#tag=v1.9.4")
+sha256sums=('SKIP' 'SKIP')
+
+pkgver() {
+  cd whisprfake
+  printf "0.1.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cmake -S whisper.cpp -B whisper.cpp/build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON -DWHISPER_BUILD_TESTS=OFF
+  cmake --build whisper.cpp/build -j"$(nproc)" --target whisper-server parakeet
+}
+
+package() {
+  local opt="$pkgdir/opt/whisprfake"
+  install -d "$opt/whisper.cpp/build/bin"
+  cp -a whisper.cpp/build/bin/whisper-server whisper.cpp/build/bin/*.so* "$opt/whisper.cpp/build/bin/"
+
+  cd whisprfake
+  cp -a src pyproject.toml uv.lock README.md shell-plugin packaging "$opt/"
+  # Relocatable venv built directly at its final path layout.
+  uv venv --relocatable --python /usr/bin/python3 --system-site-packages "$opt/.venv"
+  UV_PROJECT_ENVIRONMENT="$opt/.venv" uv sync --frozen --no-editable --project "$opt"
+
+  install -Dm755 /dev/stdin "$pkgdir/usr/bin/whisprfake" <<'SH'
+#!/bin/sh
+exec /opt/whisprfake/.venv/bin/python -m whisprfake.cli "$@"
+SH
+  install -Dm755 /dev/stdin "$pkgdir/usr/bin/whisprfake-setup" <<'SH'
+#!/bin/sh
+exec /opt/whisprfake/packaging/install.sh --packaged "$@"
+SH
+  install -Dm644 packaging/whisprfake.service "$pkgdir/usr/lib/systemd/user/whisprfake.service"
+  sed -i 's|^ExecStart=.*|ExecStart=/usr/bin/whisprfake daemon|' "$pkgdir/usr/lib/systemd/user/whisprfake.service"
+  install -Dm644 packaging/dev.whisprfake.Hub.desktop "$pkgdir/usr/share/applications/dev.whisprfake.Hub.desktop"
+  install -Dm644 packaging/dev.whisprfake.Scratchpad.desktop "$pkgdir/usr/share/applications/dev.whisprfake.Scratchpad.desktop"
+}

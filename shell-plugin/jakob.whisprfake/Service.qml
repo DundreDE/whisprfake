@@ -20,6 +20,7 @@ Item {
   property real recordStart: 0
   property real elapsed: 0
   property string errorText: ""
+  property bool meetingRecording: false
 
   // command-mode answer popup
   property bool answerOpen: false
@@ -46,6 +47,8 @@ Item {
       if (root.phase === "idle") { root.targetLevel = 0; root.mode = "dictate" }
     } else if (ev.event === "level") {
       root.targetLevel = ev.v
+    } else if (ev.event === "meeting_changed") {
+      root.meetingRecording = !!ev.recording
     } else if (ev.event === "answer") {
       root.answerQuestion = ev.question || ""
       root.answerText = ev.text || ""
