@@ -3,7 +3,7 @@
 #   cd packaging/arch && makepkg -si
 # Per-user setup afterwards (models, Hyprland, omarchy-shell, systemd): whisprfake-setup
 pkgname=whisprfake-git
-pkgver=0.1.0
+pkgver=0.1.0.r8.g2d2dca9
 pkgrel=1
 pkgdesc="Local Wispr Flow clone: hold Ctrl+Super, speak, get clean text – ASR and LLM run on your GPU"
 arch=('x86_64')
@@ -17,9 +17,11 @@ optdepends=('ollama-rocm: AMD GPU acceleration for the LLM'
             'ollama-cuda: NVIDIA GPU acceleration for the LLM'
             'omarchy: Flow Bar, bar widget and menu integration')
 options=('!strip' '!debug')
+_ortver=1.28.2  # the onnxruntime ABI sherpa-onnx (speaker diarization) was built against
 source=("whisprfake::git+file://${startdir}/../.."
-        "whisper.cpp::git+https://github.com/ggml-org/whisper.cpp#tag=v1.9.4")
-sha256sums=('SKIP' 'SKIP')
+        "whisper.cpp::git+https://github.com/ggml-org/whisper.cpp#tag=v1.9.4"
+        "https://github.com/microsoft/onnxruntime/releases/download/v${_ortver}/onnxruntime-linux-x64-${_ortver}.tgz")
+sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 pkgver() {
   cd whisprfake
@@ -42,6 +44,8 @@ package() {
   # Relocatable venv built directly at its final path layout.
   uv venv --relocatable --python /usr/bin/python3 --system-site-packages "$opt/.venv"
   UV_PROJECT_ENVIRONMENT="$opt/.venv" uv sync --frozen --no-editable --project "$opt"
+  local sherpa_lib=("$opt"/.venv/lib/python3*/site-packages/sherpa_onnx/lib)
+  install -m755 "$srcdir/onnxruntime-linux-x64-${_ortver}/lib/libonnxruntime.so.${_ortver}" "${sherpa_lib[0]}/libonnxruntime.so"
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/whisprfake" <<'SH'
 #!/bin/sh

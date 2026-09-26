@@ -22,6 +22,8 @@ def ensure_link() -> None:
         return
     link = Path(spec.origin).parent / "lib" / "libonnxruntime.so"
     target = ORT_DIR / f"libonnxruntime.so.{ORT_VERSION}"
+    if link.exists() and not link.is_symlink():
+        return  # shipped by the Arch package
     if link.is_symlink() and link.resolve() == target.resolve():
         return
     link.unlink(missing_ok=True)
