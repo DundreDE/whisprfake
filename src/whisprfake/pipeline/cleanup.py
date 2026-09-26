@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from ..llm import prompts
 from ..llm.ollama import Ollama
-from . import dictionary, guard, lang, lexicon, rules, snippets
+from . import dictionary, filerefs, guard, lang, lexicon, rules, snippets
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +21,8 @@ class Context:
     after_cursor: str = ""
     names: list[str] = field(default_factory=list)
     is_terminal: bool = False
+    agent: str = ""                                   # coding agent / IDE ("Claude Code", "Cursor", …)
+    files: "filerefs.FileIndex | None" = None         # its project files, for @-mentions
 
 
 @dataclass
@@ -79,7 +81,7 @@ def bullet_for(setting: str, category: str) -> str:
 
 async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style: str, ctx: Context,
                   terms: list[dictionary.Term], snips: list[snippets.Snippet], timeout: float = 6.0,
-                  formatting: bool = True, bullet: str = "auto") -> Result:
+                  formatting: bool = True, bullet: str = "auto", file_format: str = "@") -> Result:
     text, submit = rules.extract_submit(raw.strip())
     if not text:
         return Result("", submit)
@@ -93,6 +95,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
     if unknown:
         text = dictionary.correct(text, terms, set(unknown))
         unknown = [u for u in unknown if u in text]
+    text, file_map = filerefs.protect(text, ctx.files, file_format, lex.known if lex.ready.is_set() else None)
     text, snip_map = snippets.protect(text, snips)
     text = rules.protect_breaks(text)
     res = Result("", submit)
@@ -107,7 +110,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
         try:
             r = await llm.chat(model, msgs, max_tokens=max(64, int(len(text.split()) * 3.5) + 40), timeout=timeout)
             res.used_llm, res.llm_seconds = True, r.seconds
-            out = guard.strip_wrapping(r.text)
+            out = rules.keep_anglicisms(text, guard.strip_wrapping(r.text))
             ok, why = guard.check(text, out, level)
             res.guard_reason = why
             if not ok:
@@ -124,6 +127,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
         out = rules.set_bullets(rules.format_lists(out), bullet_for(bullet, ctx.category))
     if language == "German":
         out = lex.normalize_anglicisms(out)
+    out = filerefs.expand(out, file_map)
     if style == "very_casual":
         out = out.lower()
     if ctx.category in ("personal", "work"):

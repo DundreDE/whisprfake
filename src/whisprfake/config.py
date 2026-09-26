@@ -84,6 +84,8 @@ class Cleanup(BaseModel):
     level: Literal["none", "light", "medium", "high"] = "medium"
     smart_formatting: bool = True   # lists → bullet points, paragraphs, e-mail layout
     bullet: Literal["auto", "-", "•"] = "auto"  # auto: • in chats/e-mail, - (Markdown) elsewhere
+    file_tagging: bool = True                   # spoken file names → @path for coding agents / IDEs
+    file_format: Literal["@", "`"] = "@"
     backtrack: bool = True
 
 

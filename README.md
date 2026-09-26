@@ -32,6 +32,13 @@ Das Background-Menü von Omarchy liegt jetzt auf **Ctrl + Super + Shift + B**.
 
   `camel case`, `snake case` und CLI-Flags (`minus m` → `-m`) werden umgesetzt. Korrigierst du im Hub-Verlauf
   ein Diktat, lernt whisprfake die verbesserten Begriffe sofort.
+- **Coding-Agents:**
+  - Erkennt Claude Code, Codex, Gemini CLI, aider und opencode im Terminal sowie Cursor, VS Code, Windsurf
+    und Zed, samt deren Projektordner.
+  - Gesprochene Dateinamen werden zu @-Erwähnungen: „schau dir die auth punkt ts an“ →
+    `@src/lib/auth.ts`, „update die readme“ → `@README.md`, „in der user service Datei“ →
+    `@src/services/userService.ts`.
+  - Die Dateinamen des Projekts gehen außerdem als Hörhilfe an die Spracherkennung.
 - **Deutsch und Englisch gemischt:** Die Sprache wird automatisch erkannt, es wird nie übersetzt.
 - **Styles pro App-Kategorie:** Private Chats, Arbeits-Chat, E-Mail und Rest, jeweils mit Formell / Locker /
   sehr locker / Begeistert. Web-Apps werden über Titel und URL erkannt.

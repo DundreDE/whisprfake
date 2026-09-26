@@ -248,3 +248,22 @@ _BULLET_LINE = re.compile(r"^(\s*)(?:[-*•–·]|•)\s+", re.M)
 
 def set_bullets(text: str, bullet: str) -> str:
     return _BULLET_LINE.sub(lambda m: f"{m.group(1)}{bullet} ", text)
+
+
+# ---------------------------------------------------------------------------- keep the speaker's anglicisms
+# (anglicism the speaker used, German synonym small LLMs like to swap in) – infinitive and participle
+_GERMANIZED = [
+    ("updaten", "aktualisieren"), ("geupdatet", "aktualisiert"), ("fixen", "beheben"), ("gefixt", "behoben"),
+    ("reviewen", "überprüfen"), ("reviewen", "prüfen"), ("checken", "überprüfen"), ("checken", "prüfen"),
+    ("gecheckt", "überprüft"), ("downloaden", "herunterladen"), ("uploaden", "hochladen"), ("deployen", "bereitstellen"),
+    ("debuggen", "Fehler suchen"), ("committen", "einchecken"), ("pushen", "hochladen"), ("mergen", "zusammenführen"),
+    ("canceln", "absagen"), ("chatten", "schreiben"), ("liken", "mögen"), ("posten", "veröffentlichen"),
+]
+
+
+def keep_anglicisms(raw: str, out: str) -> str:
+    raw_l = raw.lower()
+    for eng, ger in _GERMANIZED:
+        if re.search(rf"(?<![\w-]){eng}(?![\w-])", raw_l) and not re.search(rf"(?<![\w-]){eng}(?![\w-])", out, re.I):
+            out, n = re.subn(rf"(?<![\w-]){ger}(?![\w-])", eng, out, count=1, flags=re.I)
+    return out

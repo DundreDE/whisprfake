@@ -70,6 +70,8 @@ FEWSHOT = [
      "Wir sollten die Funktion getUserById nennen und das Deployment auf Kubernetes machen."),
     ("mach git commit minus m update readme und setz die variable snake case max retries auf drei", "formal",
      'Mach git commit -m "update readme" und setz die Variable max_retries auf 3.'),
+    ("kannst du die ⟦F0⟧ updaten und den bug im login fixen danach bitte die tests laufen lassen", "formal",
+     "Kannst du die ⟦F0⟧ updaten und den Bug im Login fixen? Danach bitte die Tests laufen lassen."),
     ("haha ja voll gerne bis später", "very_casual", "haha ja voll gerne bis später"),
     ("we hit ten thousand users today thanks everyone", "excited", "We hit 10,000 users today! Thanks everyone!"),
 ]

@@ -148,6 +148,20 @@ class SettingsPage(Page):
         self.command_model.connect("notify::selected", self._llm_changed)
         g.add(self.command_model)
         self.page.add(g)
+        # --- coding agents
+        g = Adw.PreferencesGroup(title="Coding-Agents",
+                                 description="Claude Code, Codex, Gemini CLI, aider, opencode im Terminal sowie Cursor, "
+                                             "VS Code, Windsurf und Zed werden automatisch erkannt.")
+        self.filetag = Adw.SwitchRow(title="Dateinamen erkennen",
+                                     subtitle="„auth punkt ts“, „die readme“, „user service Datei“ → @src/auth.ts, "
+                                              "@README.md … aus dem Projekt des Agents")
+        self.filetag.connect("notify::active", self._agents_changed)
+        g.add(self.filetag)
+        self.filefmts = [("@", "@pfad – Erwähnung für Agents und IDEs"), ("`", "`pfad` – Markdown-Code")]
+        self.filefmt = Adw.ComboRow(title="Schreibweise", model=Gtk.StringList.new([f[1] for f in self.filefmts]))
+        self.filefmt.connect("notify::selected", self._agents_changed)
+        g.add(self.filefmt)
+        self.page.add(g)
         # --- privacy
         g = Adw.PreferencesGroup(title="Privatsphäre", description="Nichts verlässt deinen Rechner.")
         self.context = Adw.SwitchRow(title="Kontext-Erkennung",
@@ -197,6 +211,8 @@ class SettingsPage(Page):
         for row, cur in ((self.cleanup_model, c["llm"]["cleanup_model"]), (self.command_model, c["llm"]["command_model"])):
             row.set_model(Gtk.StringList.new(self.models))
             row.set_selected(self.models.index(cur) if cur in self.models else 0)
+        self.filetag.set_active(c["cleanup"]["file_tagging"])
+        self.filefmt.set_selected(next((i for i, f in enumerate(self.filefmts) if f[0] == c["cleanup"]["file_format"]), 0))
         self.context.set_active(c["privacy"]["context_awareness"])
         self.autolearn.set_active(c["privacy"]["autolearn_suggestions"])
         self.retention.set_value(c["privacy"]["audio_retention_days"])
@@ -233,6 +249,10 @@ class SettingsPage(Page):
         self._save("cleanup", {"level": self.levels[self.level.get_selected()][0],
                                "smart_formatting": self.formatting.get_active(),
                                "bullet": self.bullets[self.bullet.get_selected()][0]})
+
+    def _agents_changed(self, *_):
+        self._save("cleanup", {"file_tagging": self.filetag.get_active(),
+                               "file_format": self.filefmts[self.filefmt.get_selected()][0]})
 
     def _llm_changed(self, *_):
         if not getattr(self, "models", None):

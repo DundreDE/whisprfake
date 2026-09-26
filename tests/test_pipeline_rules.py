@@ -127,3 +127,9 @@ def test_colon_lists():
                                       "- It needs a GPU\n- Setup takes time")
     assert rules.format_lists("Ich brauche noch Milch, Eier und Brot.") == "Ich brauche noch Milch, Eier und Brot."
     assert rules.format_lists("Wichtig: morgen früh anrufen.") == "Wichtig: morgen früh anrufen."
+
+
+def test_keep_anglicisms():
+    assert rules.keep_anglicisms("kannst du die readme updaten", "Kannst du die Readme aktualisieren?") == \
+        "Kannst du die Readme updaten?"
+    assert rules.keep_anglicisms("bitte aktualisieren", "Bitte aktualisieren.") == "Bitte aktualisieren."

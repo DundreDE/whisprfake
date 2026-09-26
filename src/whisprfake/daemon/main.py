@@ -42,6 +42,8 @@ class Snapshot:
     is_terminal: bool = False
     category: str = "other"
     text: TextContext = field(default_factory=TextContext)
+    agent: str = ""
+    files: object = None  # filerefs.FileIndex
 
 
 @dataclass
@@ -275,13 +277,21 @@ class Daemon:
             if len(chunk) < 1600:
                 continue
             names: list[str] = []
+            files: list[str] = []
+            if not (s.snap and s.snap.done()) and s.snap:
+                try:  # the context snapshot is usually ready long before the first chunk; wait briefly if not
+                    await asyncio.wait_for(asyncio.shield(s.snap), 0.3)
+                except (TimeoutError, Exception):
+                    pass
             if s.snap and s.snap.done() and not s.snap.exception():
                 snap = s.snap.result()
                 names = snap.text.names
                 before = snap.text.before if not s.texts else ""
+                if snap.files is not None:
+                    files = snap.files.names_for_asr(100)
             else:
                 before = ""
-            prompt = dictionary.asr_context(terms, names, previous=(" ".join(s.texts) or before))
+            prompt = dictionary.asr_context(terms, names, previous=(" ".join(s.texts) or before), files=files)
             try:
                 r = await self.asr.transcribe(chunk, prompt=prompt, languages=self.cfg.asr.languages)
             except Exception as e:
@@ -301,6 +311,15 @@ class Daemon:
             snap.text = await asyncio.to_thread(self.focus.snapshot, app.pid)
             app.url = snap.text.url
         snap.category = categorize(app, self.cfg.styles.app_overrides)
+        if self.cfg.cleanup.file_tagging:
+            from ..context.workspace import detect
+            from ..pipeline.filerefs import index_for
+
+            ws = await asyncio.to_thread(detect, app, snap.is_terminal)
+            snap.agent = ws.agent
+            if ws.root and ws.root.is_dir():
+                snap.files = await asyncio.to_thread(index_for, ws.root)
+                log.info("coding agent %s in %s (%d files)", ws.agent, ws.root, len(snap.files.files))
         return snap
 
     # ------------------------------------------------------------------ finish
@@ -359,13 +378,16 @@ class Daemon:
 
     async def _clean(self, raw: str, snap: Snapshot) -> cleanup.Result:
         style = self._style_for(snap.category)
-        ctx = cleanup.Context(app=snap.app.wm_class or snap.app.title, category=snap.category,
+        app_label = f"{snap.agent} (coding agent – write clear prompts)" if snap.agent else (snap.app.wm_class or snap.app.title)
+        ctx = cleanup.Context(app=app_label, category=snap.category,
                               before_cursor=snap.text.before, after_cursor=snap.text.after,
-                              names=snap.text.names, is_terminal=snap.is_terminal)
+                              names=snap.text.names, is_terminal=snap.is_terminal,
+                              agent=snap.agent, files=snap.files)
         return await cleanup.process(raw, llm=self.llm, model=self.cfg.llm.cleanup_model,
                                      level=self.cfg.cleanup.level, style=style, ctx=ctx,
                                      terms=self.store.terms(), snips=self.store.snippets(),
-                                     formatting=self.cfg.cleanup.smart_formatting, bullet=self.cfg.cleanup.bullet)
+                                     formatting=self.cfg.cleanup.smart_formatting, bullet=self.cfg.cleanup.bullet,
+                                     file_format=self.cfg.cleanup.file_format)
 
     async def _dictate(self, did: int, raw: str, snap: Snapshot, t_stop: float) -> None:
         res = await self._clean(raw, snap)
