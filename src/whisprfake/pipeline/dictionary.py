@@ -73,16 +73,37 @@ def glossary(terms: list[Term]) -> str:
     return "\n".join(f"- {t.term}" + (f" (may be heard as: {', '.join(t.sounds_like)})" if t.sounds_like else "") for t in terms)
 
 
+# Terms that are also ordinary words: their case is left to the LLM (it sees the sentence).
+COMMON_WORDS = {"cursor", "react", "rust", "whisper", "python", "swift", "go", "cloud", "claude", "vulkan", "element",
+                "signal", "slack", "notion", "linear", "arc", "zed", "helix", "tauri", "deno", "bun", "vite", "next"}
+
+
+def _stop(tok: str) -> bool:
+    from .lang import _DE, _EN
+
+    return tok.lower() in _DE or tok.lower() in _EN
+
+
+def _sound_ratio(a: str, b: str) -> float:
+    return fuzz.ratio(jellyfish.metaphone(a), jellyfish.metaphone(b))
+
+
 def _score(cand: str, term: str, tw: list[str]) -> int:
     """0 = no match, otherwise a similarity score (higher is better)."""
     joined, target = cand.replace(" ", "").lower(), term.replace(" ", "").lower()
     score = int(fuzz.ratio(joined, target))
     same_len = len(cand.split()) == len(tw)
-    if same_len and (score >= 88 or (score >= 72 and _phonetic_match(cand, term))):
+    short = len(target) < 6
+    if same_len and (score >= 88 or (score >= (82 if short else 72) and _phonetic_match(cand, term))
+                     or (not short and score >= 70 and _sound_ratio(joined, target) >= 90)):
         return score
-    # The ASR split an unknown word ("super base" -> "Supabase"): same first and last letter required.
-    if len(cand.split()) > len(tw) and score >= 78 and joined[0] == target[0] and joined[-1] == target[-1]:
-        return score
+    # The ASR split an unknown word into several ("Post free SQL" -> "PostgreSQL"): same first letter and a
+    # close spelling or sound required.
+    toks = cand.split()
+    if (len(toks) > len(tw) and len(target) >= 5 and joined[0] == target[0]
+            and not any(_stop(t) for t in toks)):
+        if (score >= 78 and joined[-1] == target[-1]) or (score >= 74 and _sound_ratio(joined, target) >= 85):
+            return score
     return 0
 
 
@@ -97,13 +118,16 @@ def correct(text: str, terms: list[Term]) -> str:
             continue
         tokens = list(re.finditer(r"[\wÄÖÜäöüß'-]+", text))
         cands: list[tuple[int, int, int]] = []  # (score, start, end)
-        for n in {len(tw), len(tw) + 1, max(1, len(tw) - 1)}:
+        for n in {len(tw), len(tw) + 1, len(tw) + 2, max(1, len(tw) - 1)}:
             for j in range(len(tokens) - n + 1):
                 span = tokens[j : j + n]
                 cand = " ".join(x.group(0) for x in span)
                 if cand == t.term:
                     continue
-                sc = 100 if cand.lower() == t.term.lower() else _score(cand, t.term, tw)
+                if cand.lower() == t.term.lower():
+                    sc = 0 if t.term.lower() in COMMON_WORDS else 100
+                else:
+                    sc = _score(cand, t.term, tw)
                 if sc:
                     cands.append((sc, span[0].start(), span[-1].end()))
         used: list[tuple[int, int]] = []

@@ -24,8 +24,8 @@ CONFIG_PATH = CONFIG_DIR / "config.toml"
 class Shortcuts(BaseModel):
     # Each action accepts up to four chords, like Wispr. A chord is "+"-joined key names.
     push_to_talk: list[str] = ["CTRL+SUPER"]
-    # Ctrl+Super+Space is Omarchy's background switcher; double-tap Ctrl+Super for hands-free instead.
-    hands_free: list[str] = []
+    # Omarchy's background switcher is moved to Ctrl+Super+Shift+B by packaging/hypr/whisprfake.lua.
+    hands_free: list[str] = ["CTRL+SUPER+SPACE"]
     command: list[str] = ["CTRL+SUPER+ALT"]
     paste_last: list[str] = ["CTRL+SUPER+ALT+V"]
     cancel: str = "ESC"

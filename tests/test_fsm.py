@@ -113,7 +113,7 @@ def test_right_side_modifiers_work():
     assert acts(e)[-1] == Action.START
 
 
-def test_default_has_no_space_chord_so_omarchy_background_switcher_is_untouched():
+def test_default_hands_free_chord():
     f = HotkeyFSM.from_config(Shortcuts())
-    press(f, ["KEY_LEFTCTRL", "KEY_LEFTMETA"], 0.0)
-    assert acts(f.key("KEY_SPACE", True, 0.05)) == [Action.DISCARD]
+    e = press(f, ["KEY_LEFTCTRL", "KEY_LEFTMETA", "KEY_SPACE"], 0.0)
+    assert acts(e)[-1] == Action.LOCK

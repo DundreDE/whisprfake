@@ -87,6 +87,7 @@ class Daemon:
         self.asr_ready = asyncio.Event()
         self.loop: asyncio.AbstractEventLoop | None = None
         self._register_ipc()
+        self._register_ipc_extra()
 
     # ------------------------------------------------------------------ lifecycle
     async def run(self) -> None:
@@ -328,6 +329,10 @@ class Daemon:
             self.sounds.play("error")
             self._emit_error(f"Verarbeitung fehlgeschlagen: {e}")
         finally:
+            if self.cfg.privacy.audio_retention_days == 0:
+                audio_path.unlink(missing_ok=True)
+                if did:
+                    self.store.update_dictation(did, audio_path=None)
             self.processing -= 1
             self._set_state("recording" if self.session and self.session.confirmed else
                             "processing" if self.processing else "idle")
@@ -614,6 +619,104 @@ class Daemon:
         async def _(p):
             from ..audio.capture import list_inputs
             return list_inputs()
+
+    def _register_ipc_extra(self) -> None:
+        m = self.ipc.method
+        st = self.store
+
+        @m("history.delete")
+        async def _(p):
+            row = st.q("SELECT audio_path FROM dictations WHERE id=?", (int(p["id"]),))
+            if row and row[0]["audio_path"]:
+                Path(row[0]["audio_path"]).unlink(missing_ok=True)
+            st.x("DELETE FROM dictations WHERE id=?", (int(p["id"]),))
+            return True
+
+        @m("history.clear")
+        async def _(p):
+            for row in st.q("SELECT audio_path FROM dictations WHERE audio_path IS NOT NULL"):
+                Path(row["audio_path"]).unlink(missing_ok=True)
+            st.x("DELETE FROM dictations")
+            return True
+
+        @m("audio.play")
+        async def _(p):
+            row = st.q("SELECT audio_path FROM dictations WHERE id=?", (int(p["id"]),))
+            if not row or not row[0]["audio_path"] or not Path(row[0]["audio_path"]).exists():
+                raise RuntimeError("Audio nicht mehr vorhanden")
+            await asyncio.create_subprocess_exec("pw-play", row[0]["audio_path"])
+            return True
+
+        @m("dictionary.star")
+        async def _(p):
+            st.x("UPDATE dictionary SET starred=? WHERE id=?", (int(bool(p.get("starred"))), int(p["id"])))
+            return True
+
+        @m("dictionary.update")
+        async def _(p):
+            st.x("UPDATE dictionary SET term=?, sounds_like=? WHERE id=?",
+                 (p["term"].strip(), json.dumps(p.get("sounds_like", [])), int(p["id"])))
+            return True
+
+        # ---- notes (scratchpad) ------------------------------------------------
+        @m("notes.list")
+        async def _(p):
+            return st.q("SELECT id, title, substr(body, 1, 200) AS preview, updated, position FROM notes "
+                        "WHERE archived=0 ORDER BY position, updated DESC")
+
+        @m("notes.get")
+        async def _(p):
+            r = st.q("SELECT * FROM notes WHERE id=?", (int(p["id"]),))
+            return r[0] if r else None
+
+        @m("notes.save")
+        async def _(p):
+            now = time.time()
+            body, title = p.get("body", ""), p.get("title") or ""
+            if not title:
+                title = (body.strip().splitlines() or ["Neue Notiz"])[0][:60] or "Neue Notiz"
+            if p.get("id"):
+                nid = int(p["id"])
+                last = st.q("SELECT ts, body FROM note_versions WHERE note_id=? ORDER BY ts DESC LIMIT 1", (nid,))
+                if not last or (now - last[0]["ts"] > 120 and last[0]["body"] != body):
+                    st.x("INSERT INTO note_versions(note_id, body, ts) VALUES (?,?,?)", (nid, body, now))
+                st.x("UPDATE notes SET title=?, body=?, updated=? WHERE id=?", (title, body, now, nid))
+            else:
+                nid = st.x("INSERT INTO notes(title, body, created, updated, position) VALUES (?,?,?,?, "
+                           "(SELECT COALESCE(MAX(position),0)+1 FROM notes))", (title, body, now, now))
+                st.x("INSERT INTO note_versions(note_id, body, ts) VALUES (?,?,?)", (nid, body, now))
+            self.ipc.emit("notes_changed", id=nid)
+            return nid
+
+        @m("notes.delete")
+        async def _(p):
+            st.x("DELETE FROM notes WHERE id=?", (int(p["id"]),))
+            self.ipc.emit("notes_changed", id=int(p["id"]))
+            return True
+
+        @m("notes.versions")
+        async def _(p):
+            return st.q("SELECT id, ts, body FROM note_versions WHERE note_id=? ORDER BY ts DESC LIMIT 50",
+                        (int(p["id"]),))
+
+        # ---- misc ------------------------------------------------------------
+        @m("models.list")
+        async def _(p):
+            r = await self.llm.client.get(self.cfg.llm.base_url + "/api/tags")
+            return sorted(x["name"] for x in r.json().get("models", []))
+
+        @m("service.restart")
+        async def _(p):
+            import os
+            import sys
+
+            async def later():
+                await asyncio.sleep(0.3)
+                await self.asr.stop()
+                os.execv(sys.executable, [sys.executable, *sys.argv])
+            asyncio.create_task(later())
+            return True
+
 
 
 def main() -> None:

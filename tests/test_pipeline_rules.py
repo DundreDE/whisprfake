@@ -69,3 +69,20 @@ def test_categories():
     assert categorize(AppInfo(wm_class="chromium", url="https://web.whatsapp.com/")) == "personal"
     assert categorize(AppInfo(wm_class="Alacritty", title="nvim")) == "other"
     assert categorize(AppInfo(wm_class="firefox", title="Periodic elements table")) == "other"
+
+
+def test_dictionary_split_words():
+    t = [dictionary.Term("PostgreSQL")]
+    for heard in ["Post QSQL.", "Post Creed SQL!", "Post free SQL.", "Postgre SQL."]:
+        assert dictionary.correct(heard, t).startswith("PostgreSQL"), heard
+    assert dictionary.correct("Post für alle.", t) == "Post für alle."
+    assert dictionary.correct("Wir posten es später.", t) == "Wir posten es später."
+
+
+def test_dictionary_no_false_positives():
+    from whisprfake.store.seed import TECH_TERMS
+
+    T = [dictionary.Term(t, s) for t, s in TECH_TERMS]
+    for s in ["The cursor is blinking in the editor.", "Ich habe Rast gemacht und dann weiter.",
+              "Der Docker Container startet nicht.", "Ich gehe heute noch zur Post.", "How do you react to that?"]:
+        assert dictionary.correct(s, T) == s, s

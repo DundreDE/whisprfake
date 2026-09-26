@@ -13,7 +13,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("daemon", help="run the background service")
     sub.add_parser("hub", help="open the Hub (history, dictionary, snippets, settings)")
-    sub.add_parser("scratchpad", help="open the floating scratchpad")
+    sp = sub.add_parser("scratchpad", help="open the floating scratchpad")
+    sp.add_argument("--note", type=int, help="open a specific note")
+    sp.add_argument("--toggle", action="store_true", help="close if already focused")
     c = sub.add_parser("ctl", help="call a daemon method, e.g. `ctl toggle`, `ctl stats`")
     c.add_argument("method")
     c.add_argument("params", nargs="?", default="{}", help="JSON params")
@@ -45,7 +47,7 @@ def main() -> None:
     elif a.cmd == "scratchpad":
         from .ui.scratchpad.app import main as pad
 
-        pad()
+        pad((["--note", str(a.note)] if a.note else []) + (["--toggle"] if a.toggle else []))
 
 
 async def _transcribe(path: str, engine: str | None, raw: bool) -> None:
