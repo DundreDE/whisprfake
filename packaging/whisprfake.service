@@ -1,0 +1,13 @@
+[Unit]
+Description=whisprfake – local Wispr Flow style dictation
+After=graphical-session.target pipewire.service ollama.service
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/DEV/whisprfake/.venv/bin/whisprfake daemon
+Restart=on-failure
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=graphical-session.target

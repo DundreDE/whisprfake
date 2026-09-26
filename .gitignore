@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+bench/samples/*.wav
+bench/results/
+*.egg-info/
