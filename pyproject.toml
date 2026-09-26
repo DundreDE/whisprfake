@@ -16,10 +16,8 @@ dependencies = [
   "dbus-next>=0.2.3",
   "platformdirs>=4.2",
   "soundfile>=0.12",
+  "sherpa-onnx>=1.10",
 ]
-
-[project.optional-dependencies]
-notetaker = ["sherpa-onnx>=1.10"]
 
 [project.scripts]
 whisprfake = "whisprfake.cli:main"

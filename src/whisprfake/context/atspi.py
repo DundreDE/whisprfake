@@ -30,6 +30,7 @@ class TextContext:
     url: str = ""
     pid: int = 0
     password: bool = False
+    acc: object = None  # the focused accessible (for auto-learn re-reads)
 
 
 _NAME = re.compile(r"\b[A-ZÄÖÜ][a-zäöüß]{1,20}(?:\s[A-ZÄÖÜ][a-zäöüß]{1,20})?\b")
@@ -86,6 +87,7 @@ class FocusTracker:
             return ctx
         try:
             ctx.pid = acc.get_process_id()
+            ctx.acc = acc
             if pid and ctx.pid != pid:
                 return TextContext()  # stale focus from another app
             if acc.get_role() == Atspi.Role.PASSWORD_TEXT:
@@ -150,3 +152,12 @@ class FocusTracker:
             except Exception:
                 continue
         return list(names)[:40], url
+
+
+def read_text(acc, limit: int = 20000) -> str:
+    """Current full text of an accessible text field ('' if gone)."""
+    try:
+        n = Atspi.Text.get_character_count(acc)
+        return Atspi.Text.get_text(acc, max(0, n - limit), n) or ""
+    except Exception:
+        return ""

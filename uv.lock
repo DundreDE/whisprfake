@@ -763,13 +763,9 @@ dependencies = [
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "rapidfuzz" },
+    { name = "sherpa-onnx" },
     { name = "sounddevice" },
     { name = "soundfile" },
-]
-
-[package.optional-dependencies]
-notetaker = [
-    { name = "sherpa-onnx" },
 ]
 
 [package.dev-dependencies]
@@ -791,11 +787,10 @@ requires-dist = [
     { name = "platformdirs", specifier = ">=4.2" },
     { name = "pydantic", specifier = ">=2.8" },
     { name = "rapidfuzz", specifier = ">=3.9" },
-    { name = "sherpa-onnx", marker = "extra == 'notetaker'", specifier = ">=1.10" },
+    { name = "sherpa-onnx", specifier = ">=1.10" },
     { name = "sounddevice", specifier = ">=0.5" },
     { name = "soundfile", specifier = ">=0.12" },
 ]
-provides-extras = ["notetaker"]
 
 [package.metadata.requires-dev]
 dev = [

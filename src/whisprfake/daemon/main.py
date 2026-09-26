@@ -86,6 +86,8 @@ class Daemon:
         self.last_answer: dict | None = None
         self.asr_ready = asyncio.Event()
         self.loop: asyncio.AbstractEventLoop | None = None
+        from ..notetaker.manager import Notetaker
+        self.notetaker = Notetaker(self)
         self._register_ipc()
         self._register_ipc_extra()
 
@@ -103,6 +105,7 @@ class Daemon:
             asyncio.create_task(self.primary.run()),
             asyncio.create_task(self._retention()),
             asyncio.create_task(self._warmup()),
+            asyncio.create_task(self.notetaker.watch()),
         ]
         log.info("whisprfake ready (socket %s)", C.SOCKET_PATH)
         try:
@@ -361,6 +364,8 @@ class Daemon:
         log.info("dictation %d: %d ms (asr %s, llm %d ms) %r", did, latency, self.asr.name,
                  int(res.llm_seconds * 1000), res.text[:80])
         self.ipc.emit("inserted", id=did, text=res.text, latency_ms=latency)
+        if ok and self.cfg.privacy.autolearn_suggestions and snap.text.acc is not None and not snap.is_terminal:
+            asyncio.create_task(self._autolearn(snap.text.acc, res.text))
 
     # ------------------------------------------------------------------ command mode
     async def _selection(self, snap: Snapshot) -> str:
@@ -413,6 +418,22 @@ class Daemon:
             else:
                 await inject.copy_only(text)
                 await hypr.notify(text[:300] + ("…" if len(text) > 300 else "") + "\n(in Zwischenablage)", 15000)
+
+    async def _autolearn(self, acc, inserted: str) -> None:
+        from ..context.atspi import read_text
+        from ..store.autolearn import suggestions
+
+        known = {t.term.lower() for t in self.store.terms()}
+        for delay in (12, 30):
+            await asyncio.sleep(delay if delay == 12 else delay - 12)
+            current = await asyncio.to_thread(read_text, acc)
+            if not current:
+                return
+            for heard, fixed in suggestions(inserted, current, known):
+                log.info("auto-learn suggestion: %r -> %r", heard, fixed)
+                self.store.add_suggestion(fixed, heard, current[:300])
+                known.add(fixed.lower())
+                self.ipc.emit("suggestion", term=fixed, heard=heard)
 
     async def _paste_last(self) -> None:
         last = self.store.last_inserted()
@@ -702,6 +723,40 @@ class Daemon:
                         (int(p["id"]),))
 
         # ---- misc ------------------------------------------------------------
+        # ---- notetaker ------------------------------------------------------
+        @m("meeting.status")
+        async def _(p):
+            return {"recording": self.notetaker.recording, "id": self.notetaker.meeting_id}
+
+        @m("meeting.start")
+        async def _(p):
+            mid = await self.notetaker.start(p.get("title", ""), p.get("app", ""))
+            await hypr.notify("Meeting-Aufnahme läuft (Mikro + Systemton)")
+            return mid
+
+        @m("meeting.stop")
+        async def _(p):
+            return await self.notetaker.stop()
+
+        @m("meeting.list")
+        async def _(p):
+            return st.q("SELECT id, title, started, ended, app, status, summary, markdown_path FROM meetings "
+                        "ORDER BY started DESC LIMIT 100")
+
+        @m("meeting.get")
+        async def _(p):
+            r = st.q("SELECT * FROM meetings WHERE id=?", (int(p["id"]),))
+            return r[0] if r else None
+
+        @m("meeting.delete")
+        async def _(p):
+            r = st.q("SELECT audio_path FROM meetings WHERE id=?", (int(p["id"]),))
+            if r and r[0]["audio_path"]:
+                for f in json.loads(r[0]["audio_path"]):
+                    Path(f).unlink(missing_ok=True)
+            st.x("DELETE FROM meetings WHERE id=?", (int(p["id"]),))
+            return True
+
         @m("command.run")
         async def _(p):
             """Run Command Mode with typed text instead of speech (testing, scripts)."""
