@@ -21,6 +21,12 @@ Item {
   property real elapsed: 0
   property string errorText: ""
 
+  // command-mode answer popup
+  property bool answerOpen: false
+  property bool answerPending: false
+  property string answerQuestion: ""
+  property string answerText: ""
+
   readonly property bool shown: phase !== "idle" || errorText !== ""
   readonly property color ink: mode === "command" ? Color.accent : Color.popups.text
   readonly property color bg: Util.alpha(Color.background, 0.94)
@@ -40,6 +46,11 @@ Item {
       if (root.phase === "idle") { root.targetLevel = 0; root.mode = "dictate" }
     } else if (ev.event === "level") {
       root.targetLevel = ev.v
+    } else if (ev.event === "answer") {
+      root.answerQuestion = ev.question || ""
+      root.answerText = ev.text || ""
+      root.answerPending = !!ev.pending
+      root.answerOpen = true
     } else if (ev.event === "error") {
       root.errorText = ev.message || "Fehler"
       errorTimer.restart()
@@ -76,6 +87,7 @@ Item {
 
   IpcHandler {
     target: "whisprfake"
+    function closeAnswer(): string { root.answerOpen = false; return "ok" }
     function state(): string { return root.phase + " connected=" + root.connected }
   }
 
@@ -84,7 +96,7 @@ Item {
   // 60 fps animation clock
   property real t: 0
   FrameAnimation {
-    running: panel.visible
+    running: panel.visible || answerPanel.visible
     onTriggered: {
       root.t += frameTime
       root.level += (root.targetLevel - root.level) * Math.min(1, frameTime * 18)
@@ -238,6 +250,94 @@ Item {
         color: Color.urgent
         font.family: Style.fontFamily
         font.pixelSize: 12
+      }
+    }
+  }
+
+  Timer { id: insertLater; interval: 180; onTriggered: root.send("answer.insert") }
+
+  PanelWindow {
+    id: answerPanel
+    visible: root.answerOpen
+    anchors { bottom: true; left: true; right: true }
+    implicitHeight: 560
+    color: "transparent"
+    WlrLayershell.namespace: "whisprfake-answer"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    exclusionMode: ExclusionMode.Ignore
+    mask: Region { item: card }
+
+    Rectangle {
+      id: card
+      width: 600
+      height: Math.min(480, col.implicitHeight + 32)
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: 84
+      radius: 14
+      color: Util.alpha(Color.background, 0.97)
+      border.width: 1
+      border.color: Util.alpha(Color.accent, 0.6)
+      focus: true
+      Keys.onEscapePressed: root.answerOpen = false
+
+      Column {
+        id: col
+        x: 18; y: 16
+        width: parent.width - 36
+        spacing: 10
+
+        Text {
+          width: parent.width
+          text: root.answerQuestion
+          color: Util.alpha(Color.popups.text, 0.6)
+          font.family: Style.fontFamily
+          font.pixelSize: 12
+          wrapMode: Text.Wrap
+          maximumLineCount: 2
+          elide: Text.ElideRight
+        }
+
+        Flickable {
+          width: parent.width
+          height: Math.min(340, answer.implicitHeight)
+          contentHeight: answer.implicitHeight
+          clip: true
+          Text {
+            id: answer
+            width: parent.width
+            text: root.answerPending ? "Denke nach …" : root.answerText
+            textFormat: root.answerPending ? Text.PlainText : Text.MarkdownText
+            color: Color.popups.text
+            font.pixelSize: 14
+            wrapMode: Text.Wrap
+            opacity: root.answerPending ? 0.5 + 0.5 * Math.sin(root.t * 5) : 1
+          }
+        }
+
+        Row {
+          spacing: 8
+          anchors.right: parent.right
+          visible: !root.answerPending
+          Repeater {
+            model: [{ label: "Einfügen", act: "insert" }, { label: "Kopieren", act: "copy" }, { label: "Schließen", act: "close" }]
+            Rectangle {
+              required property var modelData
+              width: lbl.implicitWidth + 22; height: 28; radius: 8
+              color: ma.containsMouse ? Util.alpha(Color.accent, 0.35) : Util.alpha(Color.popups.text, 0.08)
+              Text { id: lbl; anchors.centerIn: parent; text: modelData.label; color: Color.popups.text; font.pixelSize: 12 }
+              MouseArea {
+                id: ma; anchors.fill: parent; hoverEnabled: true
+                onClicked: {
+                  root.answerOpen = false
+                  if (modelData.act === "insert") insertLater.restart()
+                  else if (modelData.act === "copy") root.send("answer.copy")
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

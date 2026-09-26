@@ -366,15 +366,17 @@ class Daemon:
     async def _selection(self, snap: Snapshot) -> str:
         if snap.text.selection:
             return snap.text.selection
-        if await self.primary.fresh_for():
+        if snap.text.pid:
+            return ""  # AT-SPI sees this app and reports no selection: trust it over PRIMARY
+        if await self.primary.fresh_for(45.0):
             got = await inject.read_clipboard(primary=True)
             if got:
                 return got[1].decode(errors="replace")
         return ""
 
-    async def _command(self, did: int, raw: str, snap: Snapshot) -> None:
+    async def _command(self, did: int, raw: str, snap: Snapshot, ask_only: bool = False) -> None:
         instruction = guard.strip_wrapping(raw)
-        selection = await self._selection(snap)
+        selection = "" if ask_only else await self._selection(snap)
         transforms = {r["name"]: r["prompt"] for r in self.store.q("SELECT name, prompt FROM transforms")}
         r = router.route(instruction, selection, transforms)
         self.store.update_dictation(did, instruction=instruction, mode="command")
@@ -700,6 +702,14 @@ class Daemon:
                         (int(p["id"]),))
 
         # ---- misc ------------------------------------------------------------
+        @m("command.run")
+        async def _(p):
+            """Run Command Mode with typed text instead of speech (testing, scripts)."""
+            snap = await self._snapshot()
+            did = self.store.add_dictation(mode="command", status="pending", raw=p["text"])
+            await self._command(did, p["text"], snap, ask_only=p.get("ask_only", False))
+            return True
+
         @m("models.list")
         async def _(p):
             r = await self.llm.client.get(self.cfg.llm.base_url + "/api/tags")

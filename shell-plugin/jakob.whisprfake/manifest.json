@@ -5,8 +5,19 @@
   "version": "0.1.0",
   "author": "Jakob",
   "description": "Flow Bar for whisprfake local dictation (Wispr Flow style)",
-  "kinds": ["service"],
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
   "entryPoints": {
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "whisprfake",
+    "description": "Diktat-Status (lokales Wispr Flow)",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }
