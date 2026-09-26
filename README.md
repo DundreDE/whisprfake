@@ -71,7 +71,7 @@ der GPU, sowie Parakeet auf der CPU. Die Modelle wählst du in den Einstellungen
 ## Installation
 
 ```sh
-git clone … ~/DEV/whisprfake && cd ~/DEV/whisprfake
+git clone https://github.com/DundreDE/whisprfake ~/DEV/whisprfake && cd ~/DEV/whisprfake
 ./packaging/install.sh          # oder --all für die alternativen Engines
 ```
 
