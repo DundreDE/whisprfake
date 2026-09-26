@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from ..llm import prompts
 from ..llm.ollama import Ollama
-from . import dictionary, guard, rules, snippets
+from . import dictionary, guard, lang, rules, snippets
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
     if level == "none":
         return Result(dictionary.correct(text, terms), submit)
 
+    language = lang.detect(text)
     text, snip_map = snippets.protect(text, snips)
     text = rules.protect_breaks(text)
     res = Result("", submit)
@@ -87,6 +88,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
         msgs = prompts.cleanup_messages(
             text, style=style, level=level, app=ctx.app, category=ctx.category,
             before_cursor=ctx.before_cursor, names=ctx.names, glossary=dictionary.glossary(terms),
+            language=language,
         )
         try:
             r = await llm.chat(model, msgs, max_tokens=max(64, int(len(text.split()) * 3.5) + 40), timeout=timeout)
@@ -96,11 +98,11 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
             res.guard_reason = why
             if not ok:
                 log.warning("LLM output rejected (%s): %r -> %r", why, text, out)
-                out = rules.light_clean(text)
+                out = rules.light_clean(text, english=language == "English")
         except Exception as e:  # LLM down/slow: never lose the dictation
             log.warning("LLM cleanup failed: %s", e)
             res.guard_reason = f"error: {e}"
-            out = rules.light_clean(text)
+            out = rules.light_clean(text, english=language == "English")
 
     out = dictionary.correct(out, terms)
     out = rules.normalize_lines(rules.restore_placeholders(out))

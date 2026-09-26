@@ -66,7 +66,8 @@ FEWSHOT = [
 
 
 def cleanup_messages(raw: str, *, style: str, level: str, app: str = "", category: str = "other",
-                     before_cursor: str = "", names: list[str] | None = None, glossary: str = "") -> list[dict]:
+                     before_cursor: str = "", names: list[str] | None = None, glossary: str = "",
+                     language: str = "") -> list[dict]:
     # The dictionary changes rarely, so it lives in the system prompt where Ollama's prefix cache covers it.
     system = CLEANUP_SYSTEM + (f"\n\nPersonal dictionary (preferred spellings):\n{glossary}" if glossary else "")
     msgs = [{"role": "system", "content": system}]
@@ -81,8 +82,9 @@ def cleanup_messages(raw: str, *, style: str, level: str, app: str = "", categor
     if names:
         ctx.append("Names on screen: " + ", ".join(names[:30]))
     ctx_block = ("CONTEXT\n" + "\n".join(ctx) + "\n") if ctx else ""
+    lang_line = f"LANGUAGE of the transcript: {language} – the output MUST be in {language} too.\n" if language and language != "unknown" else ""
     msgs.append({"role": "user", "content":
-                 f"{ctx_block}STYLE {STYLE_TEXT[style]}\n{LEVEL_TEXT[level]}\n<transcript>\n{raw}\n</transcript>"})
+                 f"{ctx_block}{lang_line}STYLE {STYLE_TEXT[style]}\n{LEVEL_TEXT[level]}\n<transcript>\n{raw}\n</transcript>"})
     return msgs
 
 

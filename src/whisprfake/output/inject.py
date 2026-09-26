@@ -59,12 +59,16 @@ async def paste_text(text: str, is_terminal: bool, submit: bool = False, restore
         await asyncio.sleep(0.08)
         await hypr.send_shortcut("", "Return")
     if restore:
-        await asyncio.sleep(0.35)  # let the app fetch the paste before swapping the clipboard back
-        if saved:
-            await write_clipboard(saved[1], saved[0], sensitive=False)
-        else:
-            await clear_clipboard()
+        asyncio.create_task(_restore_later(saved))
     return ok
+
+
+async def _restore_later(saved: tuple[str, bytes] | None) -> None:
+    await asyncio.sleep(0.4)  # let the app fetch the paste before swapping the clipboard back
+    if saved:
+        await write_clipboard(saved[1], saved[0], sensitive=False)
+    else:
+        await clear_clipboard()
 
 
 async def copy_only(text: str) -> None:

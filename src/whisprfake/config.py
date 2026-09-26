@@ -49,7 +49,7 @@ class Audio(BaseModel):
 
 
 class ASR(BaseModel):
-    engine: Literal["whisper", "parakeet", "qwen3asr", "parakeet_onnx"] = "whisper"
+    engine: Literal["whisper", "parakeet", "qwen3asr", "parakeet_onnx"] = "parakeet"  # ~0.1 s on the RX 6800
     languages: list[str] = ["de", "en"]
     whisper_model: str = "ggml-large-v3-turbo.bin"
     parakeet_model: str = "ggml-parakeet-tdt-0.6b-v3-f16.bin"

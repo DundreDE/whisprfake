@@ -93,11 +93,17 @@ def tidy(text: str) -> str:
     return text.strip()
 
 
-def light_clean(text: str) -> str:
+_EN_UM = re.compile(r"[,]?\s*(?<![\w-])(?:um|uh|er)(?![\w-])[,]?", re.I)
+
+
+def light_clean(text: str, english: bool = False) -> str:
     """Rule-only cleanup used for level 'light' and as the fallback when the LLM guard fails."""
     text = remove_fillers(text)
+    if english:  # "um" is only a filler in English (in German it's a preposition)
+        text = _EN_UM.sub("", text)
     text = spoken_punctuation(text)
     text = tidy(text)
+    text = re.sub(r"([.!?]\s+)([a-zäöü])", lambda m: m.group(1) + m.group(2).upper(), text)
     if text and text[0].islower() and not text.startswith(("⟦",)):
         text = text[0].upper() + text[1:]
     return text

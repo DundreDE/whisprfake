@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "jakob.whisprfake",
+  "name": "whisprfake",
+  "version": "0.1.0",
+  "author": "Jakob",
+  "description": "Flow Bar for whisprfake local dictation (Wispr Flow style)",
+  "kinds": ["service"],
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

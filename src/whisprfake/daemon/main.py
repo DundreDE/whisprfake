@@ -121,8 +121,8 @@ class Daemon:
             self._emit_error("Spracherkennung konnte nicht starten")
         try:
             await self.llm.warm(self.cfg.llm.cleanup_model)
-            await self.llm.chat(self.cfg.llm.cleanup_model, prompts.cleanup_messages(
-                "test", style="formal", level="medium"), max_tokens=4)
+            # same system prompt + dictionary as real dictations, so Ollama caches the prefix now
+            await self._clean("ähm das ist ein test", Snapshot())
             log.info("LLM %s ready", self.cfg.llm.cleanup_model)
         except Exception as e:
             log.warning("LLM warmup failed (%s) – cleanup falls back to rules", e)
@@ -202,6 +202,7 @@ class Daemon:
             self._set_state("recording")
         elif a in (Action.DISCARD, Action.CANCEL):
             self._end(s)
+            s.queue.put_nowait(None)  # let the ASR worker exit
             if a is Action.CANCEL:
                 self.sounds.play("cancel")
             self._set_state("processing" if self.processing else "idle")
@@ -621,6 +622,7 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("WHISPRFAKE_LOG", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    (C.RUNTIME_DIR / "whisprfake.pid").write_text(str(os.getpid()))
     cfg = C.load()
     if not C.CONFIG_PATH.exists():
         C.save(cfg)
