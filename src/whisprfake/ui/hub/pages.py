@@ -202,7 +202,7 @@ class DictionaryPage(Page):
                                     description="Namen, Fachbegriffe, Firmen, Orte. Die Spracherkennung bekommt diese Liste als "
                                                 "Kontext und hört sie dadurch richtig. „Klingt wie“ korrigiert zusätzlich, "
                                                 "was trotzdem falsch ankommt.")
-        self.term = Adw.EntryRow(title="Wort / Begriff")
+        self.term = Adw.EntryRow(title="Wort / Begriff (mehrere mit Komma trennen)")
         self.sounds = Adw.EntryRow(title="Klingt wie (optional, mit Komma trennen)")
         addg.add(self.term)
         addg.add(self.sounds)
@@ -224,7 +224,10 @@ class DictionaryPage(Page):
         if not term:
             return
         sounds = [s.strip() for s in self.sounds.get_text().split(",") if s.strip()]
-        self.safe("dictionary.add", {"term": term, "sounds_like": sounds}, ok=f"„{term}“ hinzugefügt")
+        terms = [t.strip() for t in term.split(",") if t.strip()] if not sounds else [term]
+        for t in terms:  # "A, B, C" adds several terms at once
+            self.safe("dictionary.add", {"term": t, "sounds_like": sounds})
+        self.toast(f"„{terms[0]}“ hinzugefügt" if len(terms) == 1 else f"{len(terms)} Begriffe hinzugefügt")
         self.term.set_text("")
         self.sounds.set_text("")
         self.refresh()
