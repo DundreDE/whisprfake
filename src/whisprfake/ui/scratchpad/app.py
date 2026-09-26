@@ -171,6 +171,12 @@ class ScratchApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
 
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+        from ..theme import apply
+
+        apply()
+
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]
         win = self.props.active_window or ScratchWindow(self)

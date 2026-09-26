@@ -38,17 +38,39 @@ class HubWindow(Adw.ApplicationWindow):
         sidebar.connect("row-selected", self._select)
         self.sidebar = sidebar
 
-        self.status = Gtk.Label(xalign=0, margin_start=12, margin_bottom=10, margin_top=6)
+        # brand
+        brand = Gtk.Box(spacing=10, margin_start=14, margin_end=14, margin_top=4, margin_bottom=14)
+        logo = Gtk.Box(valign=Gtk.Align.CENTER, halign=Gtk.Align.START)
+        logo.set_size_request(34, 34)
+        logo.add_css_class("wf-brand-icon")
+        logo.append(Gtk.Image(icon_name="audio-input-microphone-symbolic", pixel_size=18, hexpand=True,
+                              halign=Gtk.Align.CENTER))
+        brand.append(logo)
+        names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
+        t1 = Gtk.Label(label="whisprfake", xalign=0)
+        t1.add_css_class("wf-brand-title")
+        t2 = Gtk.Label(label="lokal · privat · schnell", xalign=0)
+        t2.add_css_class("wf-brand-sub")
+        names.append(t1)
+        names.append(t2)
+        brand.append(names)
+
+        # status pill at the bottom
+        status_box = Gtk.Box(spacing=8, margin_start=18, margin_bottom=14, margin_top=8)
+        self.dot = Gtk.Box(valign=Gtk.Align.CENTER)
+        self.dot.add_css_class("wf-status-dot")
+        self.status = Gtk.Label(xalign=0, label="verbinde …")
         self.status.add_css_class("caption")
         self.status.add_css_class("dim-label")
+        status_box.append(self.dot)
+        status_box.append(self.status)
+
         side_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        side_box.append(brand)
         side_box.append(Gtk.ScrolledWindow(child=sidebar, vexpand=True))
-        side_box.append(self.status)
+        side_box.append(status_box)
         side_tv = Adw.ToolbarView(content=side_box)
-        hb = Adw.HeaderBar()
-        title = Gtk.Label(label="whisprfake")
-        title.add_css_class("heading")
-        hb.set_title_widget(title)
+        hb = Adw.HeaderBar(show_title=False)
         side_tv.add_top_bar(hb)
 
         self.content_title = Adw.WindowTitle()
@@ -83,10 +105,15 @@ class HubWindow(Adw.ApplicationWindow):
     def _event(self, ev: dict) -> None:
         e = ev.get("event")
         if e == "state":
-            labels = {"idle": "● bereit", "recording": "● nimmt auf", "processing": "● verarbeitet"}
+            labels = {"idle": "bereit", "recording": "nimmt auf …", "processing": "verarbeitet …"}
             self.status.set_label(labels.get(ev["state"], ev["state"]))
+            for c in ("ok", "rec"):
+                self.dot.remove_css_class(c)
+            self.dot.add_css_class("ok" if ev["state"] == "idle" else "rec")
         elif e == "disconnected":
-            self.status.set_label("○ Dienst nicht erreichbar")
+            self.status.set_label("Dienst nicht erreichbar")
+            for c in ("ok", "rec"):
+                self.dot.remove_css_class(c)
         elif e in ("inserted", "notes_changed", "meeting_changed"):
             if self.current().title in ("Übersicht", "Verlauf", "Notizen", "Meetings"):
                 self.current().refresh()
@@ -101,6 +128,12 @@ class HubWindow(Adw.ApplicationWindow):
 class HubApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+        from ..theme import apply
+
+        apply()
 
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]

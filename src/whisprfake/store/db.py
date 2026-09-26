@@ -153,7 +153,18 @@ class Store:
         apps: dict[str, int] = {}
         for r in rows:
             apps[r["app_class"] or "?"] = apps.get(r["app_class"] or "?", 0) + (r["words"] or 0)
+        import datetime as _dt
+
+        today_d = _dt.date.today()
+        per_day = {}
+        for r in rows:
+            d = _dt.date.fromtimestamp(r["ts"])
+            per_day[d] = per_day.get(d, 0) + (r["words"] or 0)
+        names = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+        last7 = [(names[(today_d - _dt.timedelta(days=i)).weekday()], per_day.get(today_d - _dt.timedelta(days=i), 0))
+                 for i in range(6, -1, -1)]
         return {
+            "last7": last7,
             "total_words": total_words, "today_words": today, "week_words": week,
             "wpm": round(total_words / (spoken_s / 60), 1) if spoken_s > 30 else 0,
             "dictations": len(rows), "streak_days": streak,
