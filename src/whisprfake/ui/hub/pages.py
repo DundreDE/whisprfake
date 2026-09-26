@@ -138,6 +138,8 @@ class HistoryPage(Page):
             if r.get("guard") and r["guard"] != "ok":
                 info += f" · Fallback: {r['guard']}"
             actions = Adw.ActionRow(title=info)
+            actions.add_suffix(icon_button("document-edit-symbolic", "Korrigieren (whisprfake lernt daraus)",
+                                           self._correct, r["id"], text))
             actions.add_suffix(icon_button("edit-copy-symbolic", "Kopieren", self._copy, text))
             if r.get("audio_path"):
                 actions.add_suffix(icon_button("media-playback-start-symbolic", "Audio abspielen",
@@ -150,6 +152,28 @@ class HistoryPage(Page):
     def _copy(self, text):
         self.win.get_clipboard().set(text)
         self.toast("Kopiert")
+
+    def _correct(self, did, text):
+        d = Adw.AlertDialog(heading="Diktat korrigieren",
+                            body="Verbessere falsch erkannte Namen oder Begriffe – sie landen automatisch im Wörterbuch.")
+        view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, top_margin=8, bottom_margin=8, left_margin=8,
+                            right_margin=8)
+        view.get_buffer().set_text(text)
+        d.set_extra_child(Gtk.Frame(child=Gtk.ScrolledWindow(child=view, min_content_height=120, min_content_width=420)))
+        d.add_response("cancel", "Abbrechen")
+        d.add_response("save", "Speichern")
+        d.set_response_appearance("save", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(_d, resp):
+            if resp != "save":
+                return
+            buf = view.get_buffer()
+            learned = self.safe("history.correct", {"id": did, "text": buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)})
+            self.toast("Gelernt: " + ", ".join(learned) if learned else "Gespeichert")
+            self.refresh()
+
+        d.connect("response", done)
+        d.present(self.win)
 
     def _retry(self, did):
         self.toast("Verarbeite neu …")
@@ -175,8 +199,9 @@ class DictionaryPage(Page):
     def build(self):
         self.page = Adw.PreferencesPage()
         addg = Adw.PreferencesGroup(title="Neues Wort",
-                                    description="Namen, Fachbegriffe, Firmen – so werden sie immer richtig geschrieben. "
-                                                "„Klingt wie“ hilft, wenn die Erkennung etwas Bestimmtes versteht.")
+                                    description="Namen, Fachbegriffe, Firmen, Orte. Die Spracherkennung bekommt diese Liste als "
+                                                "Kontext und hört sie dadurch richtig. „Klingt wie“ korrigiert zusätzlich, "
+                                                "was trotzdem falsch ankommt.")
         self.term = Adw.EntryRow(title="Wort / Begriff")
         self.sounds = Adw.EntryRow(title="Klingt wie (optional, mit Komma trennen)")
         addg.add(self.term)

@@ -260,15 +260,20 @@ class Daemon:
     async def _asr_worker(self, s: Session) -> None:
         await self.asr_ready.wait()
         terms = self.store.terms()
-        base_prompt = dictionary.asr_prompt(terms)
         while True:
             chunk = await s.queue.get()
             if chunk is None:
                 return
             if len(chunk) < 1600:
                 continue
-            prev = " ".join(s.texts)[-200:]
-            prompt = (base_prompt + ". " + prev).strip(". ") if prev or base_prompt else ""
+            names: list[str] = []
+            if s.snap and s.snap.done() and not s.snap.exception():
+                snap = s.snap.result()
+                names = snap.text.names
+                before = snap.text.before if not s.texts else ""
+            else:
+                before = ""
+            prompt = dictionary.asr_context(terms, names, previous=(" ".join(s.texts) or before))
             try:
                 r = await self.asr.transcribe(chunk, prompt=prompt, languages=self.cfg.asr.languages)
             except Exception as e:
@@ -452,7 +457,8 @@ class Daemon:
                 continue
             try:
                 audio, _ = await asyncio.to_thread(sf.read, p, dtype="float32")
-                r = await self.asr.transcribe(audio, languages=self.cfg.asr.languages)
+                r = await self.asr.transcribe(audio, prompt=dictionary.asr_context(self.store.terms()),
+                                              languages=self.cfg.asr.languages)
                 res = await self._clean(r.text, Snapshot())
                 self.store.update_dictation(row["id"], raw=r.text, cleaned=res.text, status="recovered",
                                             words=len(res.text.split()))
@@ -538,7 +544,7 @@ class Daemon:
             if not row or not row[0]["audio_path"] or not Path(row[0]["audio_path"]).exists():
                 raise RuntimeError("Audio nicht mehr vorhanden")
             audio, _ = await asyncio.to_thread(sf.read, row[0]["audio_path"], dtype="float32")
-            r = await self.asr.transcribe(audio, prompt=dictionary.asr_prompt(st.terms()),
+            r = await self.asr.transcribe(audio, prompt=dictionary.asr_context(st.terms()),
                                           languages=self.cfg.asr.languages)
             snap = Snapshot(app=AppInfo(wm_class=row[0]["app_class"] or ""), category=row[0]["category"] or "other")
             res = await self._clean(r.text, snap)
@@ -662,6 +668,25 @@ class Daemon:
                 Path(row["audio_path"]).unlink(missing_ok=True)
             st.x("DELETE FROM dictations")
             return True
+
+        @m("history.correct")
+        async def _(p):
+            """User fixed a transcript in the Hub: store it and learn changed names/terms right away."""
+            from ..store.autolearn import suggestions
+
+            row = st.q("SELECT cleaned, raw FROM dictations WHERE id=?", (int(p["id"]),))
+            if not row:
+                raise RuntimeError("Eintrag nicht gefunden")
+            before = row[0]["cleaned"] or row[0]["raw"] or ""
+            learned = []
+            for heard, fixed in suggestions(before, p["text"], set()):
+                existing = [t for t in st.terms() if t.term.lower() == fixed.lower()]
+                fixed = existing[0].term if existing else fixed
+                sounds = sorted({*(existing[0].sounds_like if existing else []), heard.lower()})
+                st.add_term(fixed, sounds)
+                learned.append(fixed)
+            st.update_dictation(int(p["id"]), cleaned=p["text"])
+            return learned
 
         @m("audio.play")
         async def _(p):

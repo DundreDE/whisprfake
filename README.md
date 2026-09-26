@@ -25,8 +25,13 @@ Das Background-Menü von Omarchy liegt jetzt auf **Ctrl + Super + Shift + B**.
   („um zwei, nein um drei“ → „um 3“). Aufzählungen werden zu Listen. Satzzeichen per Sprache („Komma“,
   „Fragezeichen“, „neue Zeile“, „neuer Absatz“). „drück Enter“ / „press enter“ schickt die Nachricht ab.
 - **Fachbegriffe:** Ein vorbefülltes Tech-Wörterbuch plus eigene Einträge, auch mit „klingt wie“. Die
-  Korrektur geht über Lautähnlichkeit (Kölner Phonetik / Metaphone) und das LLM-Glossar. `camel case`,
-  `snake case` und CLI-Flags (`minus m` → `-m`) werden umgesetzt.
+  Einträge wirken an drei Stellen:
+  - als Kontext direkt in der Spracherkennung
+  - im LLM-Glossar
+  - in einer Nachkorrektur über Lautähnlichkeit (Kölner Phonetik / Metaphone)
+
+  `camel case`, `snake case` und CLI-Flags (`minus m` → `-m`) werden umgesetzt. Korrigierst du im Hub-Verlauf
+  ein Diktat, lernt whisprfake die verbesserten Begriffe sofort.
 - **Deutsch und Englisch gemischt:** Die Sprache wird automatisch erkannt, es wird nie übersetzt.
 - **Styles pro App-Kategorie:** Private Chats, Arbeits-Chat, E-Mail und Rest, jeweils mit Formell / Locker /
   sehr locker / Begeistert. Web-Apps werden über Titel und URL erkannt.
@@ -58,15 +63,19 @@ Das Background-Menü von Omarchy liegt jetzt auf **Ctrl + Super + Shift + B**.
 
 ```
 evdev (Ctrl+Super) ─▶ whisprfake-daemon (Python, systemd --user)
-                        ├─ Mikro 16 kHz + Silero-VAD → Parakeet TDT v3 (whisper.cpp/Vulkan, ~0,1 s)
+                        ├─ Mikro 16 kHz + Silero-VAD → Qwen3-ASR 1.7B mit Wörterbuch-Kontext (llama.cpp/Vulkan, ~0,17 s)
                         ├─ Kontext: hyprctl + AT-SPI
                         ├─ Regeln → Qwen3 4B (Ollama, ~0,2 s) → Guard → Wörterbuch/Snippets
                         ├─ Einfügen: Zwischenablage + Hyprland send_key_state, danach Clipboard zurück
                         └─ SQLite, Unix-Socket-IPC ─▶ omarchy-shell-Plugin (QML) · Hub/Scratchpad (GTK4/libadwaita)
 ```
 
-Alternative Engines (Einstellungen › Spracherkennung): Whisper large-v3-turbo und Qwen3-ASR 1.7B, beide auf
-der GPU, sowie Parakeet auf der CPU. Die Modelle wählst du in den Einstellungen unter KI-Bereinigung.
+**Warum Qwen3-ASR:** Auf 46 echten Diktaten war es am genauesten und im Median mit 171 ms auch schnell.
+Dein Wörterbuch, Namen auf dem Bildschirm und der vorherige Satz gehen als Kontext an das Modell. Deshalb
+kommen Begriffe wie „PostgreSQL“, „Medikinet“ oder „TONOR“ richtig an. Erkennt es eine Sprache außerhalb von
+Deutsch/Englisch (bei sehr kurzen Clips), wird mit fest Deutsch neu dekodiert. Reines Rauschen wird verworfen.
+Alternativen (Einstellungen › Spracherkennung): Parakeet v3 (GPU, ~0,1 s, ohne Wörterbuch-Kontext) und
+Whisper large-v3-turbo. Vergleich auf deinen eigenen Aufnahmen: `python bench/asr_eval.py`. Die Modelle wählst du in den Einstellungen unter KI-Bereinigung.
 
 ## Installation
 

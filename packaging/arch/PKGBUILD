@@ -20,8 +20,9 @@ options=('!strip' '!debug')
 _ortver=1.28.2  # the onnxruntime ABI sherpa-onnx (speaker diarization) was built against
 source=("whisprfake::git+file://${startdir}/../.."
         "whisper.cpp::git+https://github.com/ggml-org/whisper.cpp#tag=v1.9.4"
+        "llama.cpp::git+https://github.com/ggml-org/llama.cpp#commit=86a24a1"
         "https://github.com/microsoft/onnxruntime/releases/download/v${_ortver}/onnxruntime-linux-x64-${_ortver}.tgz")
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 pkgver() {
   cd whisprfake
@@ -32,12 +33,18 @@ build() {
   cmake -S whisper.cpp -B whisper.cpp/build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON -DWHISPER_BUILD_TESTS=OFF
   cmake --build whisper.cpp/build -j"$(nproc)" --target whisper-server parakeet
+  # llama-server runs Qwen3-ASR, the default speech recognizer
+  cmake -S llama.cpp -B llama.cpp/build -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF \
+        -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON -DLLAMA_BUILD_TESTS=OFF
+  cmake --build llama.cpp/build -j"$(nproc)" --target llama-server
 }
 
 package() {
   local opt="$pkgdir/opt/whisprfake"
   install -d "$opt/whisper.cpp/build/bin"
   cp -a whisper.cpp/build/bin/whisper-server whisper.cpp/build/bin/*.so* "$opt/whisper.cpp/build/bin/"
+  install -d "$opt/llama.cpp/build/bin"
+  cp -a llama.cpp/build/bin/llama-server llama.cpp/build/bin/*.so* "$opt/llama.cpp/build/bin/"
 
   cd whisprfake
   cp -a src pyproject.toml uv.lock README.md shell-plugin packaging "$opt/"

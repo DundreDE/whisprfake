@@ -23,7 +23,8 @@ def _locate(inserted: list[str], current: list[str]) -> list[str]:
     sm = difflib.SequenceMatcher(a=current, b=inserted, autojunk=False)
     blocks = [b for b in sm.get_matching_blocks() if b.size]
     if not blocks:
-        return []
+        # no word in common (e.g. "Post QSQL" → "PostgreSQL"): only usable when the field is short
+        return current if len(current) <= len(inserted) * 2 + 2 else []
     start = max(0, blocks[0].a - blocks[0].b)
     end = min(len(current), blocks[-1].a + blocks[-1].size + (len(inserted) - blocks[-1].b - blocks[-1].size))
     return current[start:end]

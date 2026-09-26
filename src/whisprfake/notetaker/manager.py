@@ -164,12 +164,14 @@ class Notetaker:
                     segs.append(Seg(s, e, f"Sprecher {spk + 1}"))
         segs.sort(key=lambda x: x.start)
         await self.d.asr_ready.wait()
+        from ..pipeline.dictionary import asr_context
+        ctx = asr_context(self.d.store.terms())
         for sg in segs:
             src = mic if sg.speaker == "Ich" else sysa
             chunk = src[int(sg.start * 16000):int(sg.end * 16000)]
             if len(chunk) < 4000:
                 continue
-            r = await self.d.asr.transcribe(chunk, languages=self.d.cfg.asr.languages)
+            r = await self.d.asr.transcribe(chunk, prompt=ctx, languages=self.d.cfg.asr.languages)
             sg.text = r.text.strip()
         segs = [s for s in segs if s.text]
         segs = self._drop_echo(segs)

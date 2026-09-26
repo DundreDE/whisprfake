@@ -1,7 +1,7 @@
 #!/bin/bash
 # whisprfake installer for Arch Linux / Omarchy (Hyprland + omarchy-shell). Idempotent: safe to re-run.
-#   ./packaging/install.sh            core install (Parakeet + Qwen3 4B)
-#   ./packaging/install.sh --all      also Whisper large-v3-turbo and Qwen3-ASR as alternative engines
+#   ./packaging/install.sh            core install (Qwen3-ASR + Parakeet + Qwen3 4B)
+#   ./packaging/install.sh --all      also Whisper large-v3-turbo as an alternative engine
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,7 +58,7 @@ if (( ! PACKAGED )) && [[ ! -x $SRC/whisper.cpp/build/bin/whisper-server || ! -f
   cmake -S "$SRC/whisper.cpp" -B "$SRC/whisper.cpp/build" -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release
   cmake --build "$SRC/whisper.cpp/build" -j"$(nproc)"
 fi
-if (( ALL )) && [[ ! -x $SRC/llama.cpp/build/bin/llama-server ]]; then
+if (( ! PACKAGED )) && [[ ! -x $SRC/llama.cpp/build/bin/llama-server ]]; then  # runs Qwen3-ASR
   [[ -d $SRC/llama.cpp ]] || git clone --depth 1 https://github.com/ggml-org/llama.cpp "$SRC/llama.cpp"
   cmake -S "$SRC/llama.cpp" -B "$SRC/llama.cpp/build" -DGGML_VULKAN=ON -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF
   cmake --build "$SRC/llama.cpp/build" -j"$(nproc)" --target llama-server
@@ -67,6 +67,8 @@ fi
 say "Modelle"
 mkdir -p "$MODELS"
 HF=https://huggingface.co
+fetch "$HF/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/Qwen3-ASR-1.7B-Q8_0.gguf" "$MODELS/Qwen3-ASR-1.7B-Q8_0.gguf"
+fetch "$HF/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf" "$MODELS/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf"
 fetch "$HF/ggml-org/parakeet-GGUF/resolve/main/ggml-parakeet-tdt-0.6b-v3-f16.bin" "$MODELS/ggml-parakeet-tdt-0.6b-v3-f16.bin"
 fetch "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx" "$MODELS/silero_vad.onnx"
 fetch "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx" "$MODELS/3dspeaker_eres2net_base.onnx"
@@ -80,8 +82,6 @@ if [[ ! -f $MODELS/onnxruntime-linux-x64-$ORT_VERSION/lib/libonnxruntime.so.$ORT
 fi
 if (( ALL )); then
   fetch "$HF/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin" "$MODELS/ggml-large-v3-turbo.bin"
-  fetch "$HF/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/Qwen3-ASR-1.7B-Q8_0.gguf" "$MODELS/Qwen3-ASR-1.7B-Q8_0.gguf"
-  fetch "$HF/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf" "$MODELS/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf"
 fi
 ollama pull qwen3:4b-instruct-2507-q4_K_M
 ollama pull qwen3:8b

@@ -18,3 +18,7 @@ def test_ignores_rewrites_and_known_terms():
 
 def test_unchanged_text():
     assert suggestions("Alles gut hier.", "Alles gut hier.", set()) == []
+
+
+def test_short_full_replacement():
+    assert suggestions("Post QSQL.", "PostgreSQL.", set()) == [("Post QSQL", "PostgreSQL")]

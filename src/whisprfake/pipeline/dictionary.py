@@ -69,6 +69,19 @@ def asr_prompt(terms: list[Term], limit: int = 60) -> str:
     return ", ".join(t.term for t in ordered)
 
 
+def asr_context(terms: list[Term], names: list[str] | None = None, previous: str = "", limit: int = 200) -> str:
+    """Context text for context-biased ASR (Qwen3-ASR system message / Whisper initial prompt)."""
+    ordered = sorted(terms, key=lambda t: not t.starred)[:limit]
+    parts = []
+    if ordered:
+        parts.append("Vocabulary: " + ", ".join(t.term for t in ordered))
+    if names:
+        parts.append("Names: " + ", ".join(names[:40]))
+    if previous:
+        parts.append("Previous text: " + previous[-300:])
+    return "\n".join(parts)
+
+
 def glossary(terms: list[Term]) -> str:
     return "\n".join(f"- {t.term}" + (f" (may be heard as: {', '.join(t.sounds_like)})" if t.sounds_like else "") for t in terms)
 

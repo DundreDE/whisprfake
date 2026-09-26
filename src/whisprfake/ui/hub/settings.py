@@ -116,10 +116,10 @@ class SettingsPage(Page):
         self.page.add(g)
         # --- recognition
         g = Adw.PreferencesGroup(title="Spracherkennung", description="Alles läuft lokal auf deiner GPU.")
-        self.engines = [("parakeet", "Parakeet v3 (GPU, schnellste, 25 Sprachen)"),
-                        ("whisper", "Whisper large-v3-turbo (GPU, nutzt Wörterbuch direkt)"),
-                        ("qwen3asr", "Qwen3-ASR 1.7B (GPU, stark bei Sprachmix)"),
-                        ("parakeet_onnx", "Parakeet v3 (CPU)")]
+        self.engines = [("qwen3asr", "Qwen3-ASR 1.7B – empfohlen, hört dein Wörterbuch (GPU)"),
+                        ("parakeet", "Parakeet v3 – sehr schnell, ohne Wörterbuch (GPU)"),
+                        ("whisper", "Whisper large-v3-turbo – langsamer (GPU)"),
+                        ("parakeet_onnx", "Parakeet v3 (CPU, ohne Grafikkarte)")]
         self.engine = Adw.ComboRow(title="Engine", model=Gtk.StringList.new([e[1] for e in self.engines]))
         self.engine.connect("notify::selected", self._asr_changed)
         g.add(self.engine)
