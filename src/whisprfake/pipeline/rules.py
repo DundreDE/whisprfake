@@ -131,3 +131,120 @@ def normalize_lines(text: str) -> str:
     """Strip trailing spaces (Markdown hard breaks) and final periods of list items."""
     text = re.sub(r"[ \t]+$", "", text, flags=re.M)
     return _LIST_ITEM.sub(r"\1", text)
+
+
+# ---------------------------------------------------------------------------- list formatting fallback
+_ORD_DE = ["erstens", "zweitens", "drittens", "viertens", "fünftens", "sechstens", "siebtens", "achtens", "neuntens",
+           "zehntens"]
+_ORD_EN = ["firstly", "secondly", "thirdly", "fourthly", "fifthly"]
+_ORD_EN_PLAIN = ["first", "second", "third", "fourth", "fifth", "sixth"]
+_NUM_DE = ["eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn"]
+_BULLET_WORDS = r"stichpunkt|spiegelstrich|nächster\s+punkt|neuer\s+punkt|aufzählungspunkt|bullet\s+point|next\s+point"
+_BOUNDARY = r"(?:^|(?<=[.!?:;,])\s*|(?<=\n)|(?<=\s)(?:and|und|sowie|then|dann)\s+)"
+
+
+def _ordinal_pattern() -> re.Pattern:
+    alts = "|".join(_ORD_DE + _ORD_EN) + "|" + "|".join(rf"{w}(?=\s*[,:])" for w in _ORD_EN_PLAIN) \
+        + "|" + "|".join(rf"punkt\s+{w}" for w in _NUM_DE)
+    return re.compile(rf"{_BOUNDARY}\s*(?<![\w-])({alts})(?![\w-])\s*[,:]?\s*", re.I)
+
+
+_ORD = _ordinal_pattern()
+_BUL = re.compile(rf"(?<![\w-])(?:{_BULLET_WORDS})(?![\w-])\s*[,:]?\s*", re.I)
+
+
+def _rank(word: str) -> int:
+    w = re.sub(r"\s+", " ", word.lower())
+    for lst in (_ORD_DE, _ORD_EN, _ORD_EN_PLAIN):
+        if w in lst:
+            return lst.index(w)
+    if w.startswith("punkt "):
+        return _NUM_DE.index(w.split(" ", 1)[1]) if w.split(" ", 1)[1] in _NUM_DE else -1
+    return -1
+
+
+def _items_to_lines(lead: str, items: list[str], numbered: bool) -> str:
+    clean = []
+    for it in items:
+        it = re.sub(r"^(?:und|and|sowie|und\s+dann|then)\s+", "", it.strip(" ,;:"), flags=re.I).rstrip(" .;,")
+        if it:
+            clean.append(it[0].upper() + it[1:])
+    if len(clean) < 2:
+        return ""
+    lead = lead.strip().rstrip(" ,;:.")
+    lines = [f"{i + 1}. {it}" if numbered else f"- {it}" for i, it in enumerate(clean)]
+    return ((lead + ":\n") if lead else "") + "\n".join(lines)
+
+
+_LIST_WORDS = re.compile(
+    r"(?<![\w-])(?:punkte|liste|to-?dos|aufgaben|schritte|vorteile|nachteile|pros?|cons?|steps|items|points|"
+    r"tasks|features|anforderungen|themen|agenda|zutaten|einkaufsliste|optionen|options|ideen|ideas|gründe|reasons)(?![\w-])",
+    re.I)
+_ITEM_SPLIT = re.compile(r"\s*,\s*(?:(?:und|and|sowie|oder|or)\s+)?|\s+(?:und|and|sowie)\s+", re.I)
+
+
+def _colon_lists(text: str) -> str:
+    """'…folgende Punkte: A, B, C und D.' → lead-in + bullet lines (per sentence)."""
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-ZÄÖÜ])", text.strip())
+    out, changed = [], False
+    for sent in sentences:
+        m = re.match(r"^(?P<lead>[^:\n]{3,160}):\s+(?P<body>[^:\n]+?)[.!]?$", sent)
+        if m:
+            items = [i for i in _ITEM_SPLIT.split(m.group("body")) if i and i.strip()]
+            words_ok = all(len(i.split()) <= 9 for i in items)
+            if words_ok and (len(items) >= 3 or (len(items) >= 2 and _LIST_WORDS.search(m.group("lead")))):
+                block = _items_to_lines(m.group("lead"), items, numbered=False)
+                if block:
+                    out.append(block)
+                    changed = True
+                    continue
+        out.append(sent)
+    if not changed:
+        return text
+    # lists stand on their own; keep ordinary sentences as paragraphs around them
+    res = ""
+    for part in out:
+        if not res:
+            res = part
+        elif "\n" in part or "\n" in res.split("\n\n")[-1]:
+            res += "\n\n" + part
+        else:
+            res += " " + part
+    return res
+
+
+def format_lists(text: str) -> str:
+    """Deterministic safety net: 'Erstens …, zweitens …' / 'Stichpunkt … Stichpunkt …' / 'folgende Punkte:
+    A, B und C' → a real list, in case the LLM left it as running text."""
+    if re.search(r"^\s*(?:\d+[.)]|[-•*])\s", text, re.M):
+        return text  # already a list
+    ords = list(_ORD.finditer(text))
+    ranks = [_rank(m.group(1)) for m in ords]
+    if len(ords) >= 2 and ranks[:2] == [0, 1]:
+        # use the longest increasing run starting at 'first'
+        run = [ords[0]]
+        for m, r in zip(ords[1:], ranks[1:]):
+            if r == len(run):
+                run.append(m)
+        items = [text[a.end():b.start()] for a, b in zip(run, run[1:])]
+        tail = text[run[-1].end():]
+        # the last item ends at the end of its sentence
+        m_end = re.search(r"[.!?](\s+|$)", tail)
+        last, rest = (tail[:m_end.start()], tail[m_end.end():]) if m_end and m_end.end() < len(tail) else (tail, "")
+        out = _items_to_lines(text[:run[0].start()], items + [last], numbered=False)
+        if out:
+            return out + (("\n\n" + rest.strip()) if rest.strip() else "")
+    buls = list(_BUL.finditer(text))
+    if len(buls) >= 2:
+        items = [text[a.end():b.start()] for a, b in zip(buls, buls[1:])] + [text[buls[-1].end():]]
+        out = _items_to_lines(text[:buls[0].start()], items, numbered=False)
+        if out:
+            return out
+    return _colon_lists(text)
+
+
+_BULLET_LINE = re.compile(r"^(\s*)(?:[-*•–·]|•)\s+", re.M)
+
+
+def set_bullets(text: str, bullet: str) -> str:
+    return _BULLET_LINE.sub(lambda m: f"{m.group(1)}{bullet} ", text)

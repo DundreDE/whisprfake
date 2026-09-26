@@ -114,7 +114,15 @@ class Daemon:
         finally:
             await self.asr.stop()
 
+    async def _load_lexicon(self) -> None:
+        from ..pipeline import lexicon
+
+        await asyncio.to_thread(lexicon.ensure_downloaded)
+        await asyncio.to_thread(lexicon.get().load)
+        log.info("dictionaries loaded (hunspell de/en + %d anglicisms)", len(lexicon.get().anglicisms))
+
     async def _warmup(self) -> None:
+        asyncio.create_task(self._load_lexicon())
         try:
             await self.asr.start()
             # a tiny silent clip loads kernels/shaders so the first real dictation is fast
@@ -356,7 +364,8 @@ class Daemon:
                               names=snap.text.names, is_terminal=snap.is_terminal)
         return await cleanup.process(raw, llm=self.llm, model=self.cfg.llm.cleanup_model,
                                      level=self.cfg.cleanup.level, style=style, ctx=ctx,
-                                     terms=self.store.terms(), snips=self.store.snippets())
+                                     terms=self.store.terms(), snips=self.store.snippets(),
+                                     formatting=self.cfg.cleanup.smart_formatting, bullet=self.cfg.cleanup.bullet)
 
     async def _dictate(self, did: int, raw: str, snap: Snapshot, t_stop: float) -> None:
         res = await self._clean(raw, snap)

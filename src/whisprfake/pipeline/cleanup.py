@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 from ..llm import prompts
 from ..llm.ollama import Ollama
-from . import dictionary, guard, lang, rules, snippets
+from . import dictionary, guard, lang, lexicon, rules, snippets
 
 log = logging.getLogger(__name__)
 
@@ -70,8 +70,16 @@ def _messenger_period(text: str, style: str) -> str:
     return text
 
 
+def bullet_for(setting: str, category: str) -> str:
+    """'auto': real bullets in chats/e-mail, Markdown dashes in editors, terminals and AI chats."""
+    if setting in ("-", "•", "*"):
+        return setting
+    return "•" if category in ("personal", "work", "email") else "-"
+
+
 async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style: str, ctx: Context,
-                  terms: list[dictionary.Term], snips: list[snippets.Snippet], timeout: float = 6.0) -> Result:
+                  terms: list[dictionary.Term], snips: list[snippets.Snippet], timeout: float = 6.0,
+                  formatting: bool = True, bullet: str = "auto") -> Result:
     text, submit = rules.extract_submit(raw.strip())
     if not text:
         return Result("", submit)
@@ -79,6 +87,12 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
         return Result(dictionary.correct(text, terms), submit)
 
     language = lang.detect(text)
+    lex = lexicon.get()
+    known_extra = {t.term for t in terms} | {w for t in terms for w in t.term.split()} | set(ctx.names)
+    unknown = lex.unknown_words(text, known_extra) if lex.ready.is_set() else []
+    if unknown:
+        text = dictionary.correct(text, terms, set(unknown))
+        unknown = [u for u in unknown if u in text]
     text, snip_map = snippets.protect(text, snips)
     text = rules.protect_breaks(text)
     res = Result("", submit)
@@ -88,7 +102,7 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
         msgs = prompts.cleanup_messages(
             text, style=style, level=level, app=ctx.app, category=ctx.category,
             before_cursor=ctx.before_cursor, names=ctx.names, glossary=dictionary.glossary(terms),
-            language=language,
+            language=language, formatting=formatting,  # unknown-word hints confuse small models (tested)
         )
         try:
             r = await llm.chat(model, msgs, max_tokens=max(64, int(len(text.split()) * 3.5) + 40), timeout=timeout)
@@ -104,8 +118,12 @@ async def process(raw: str, *, llm: Ollama | None, model: str, level: str, style
             res.guard_reason = f"error: {e}"
             out = rules.light_clean(text, english=language == "English")
 
-    out = dictionary.correct(out, terms)
+    out = dictionary.correct(out, terms, set(unknown))
     out = rules.normalize_lines(rules.restore_placeholders(out))
+    if formatting:
+        out = rules.set_bullets(rules.format_lists(out), bullet_for(bullet, ctx.category))
+    if language == "German":
+        out = lex.normalize_anglicisms(out)
     if style == "very_casual":
         out = out.lower()
     if ctx.category in ("personal", "work"):

@@ -82,7 +82,8 @@ class LLM(BaseModel):
 
 class Cleanup(BaseModel):
     level: Literal["none", "light", "medium", "high"] = "medium"
-    smart_formatting: bool = True
+    smart_formatting: bool = True   # lists → bullet points, paragraphs, e-mail layout
+    bullet: Literal["auto", "-", "•"] = "auto"  # auto: • in chats/e-mail, - (Markdown) elsewhere
     backtrack: bool = True
 
 

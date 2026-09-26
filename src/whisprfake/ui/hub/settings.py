@@ -131,6 +131,16 @@ class SettingsPage(Page):
         self.level = Adw.ComboRow(title="Stufe", model=Gtk.StringList.new([x[1] for x in self.levels]))
         self.level.connect("notify::selected", self._cleanup_changed)
         g.add(self.level)
+        self.formatting = Adw.SwitchRow(title="Intelligente Formatierung",
+                                        subtitle="Aufzählungen als Bullet Points, Absätze, E-Mail-Aufbau – "
+                                                 "schreibt, was du meinst")
+        self.formatting.connect("notify::active", self._cleanup_changed)
+        g.add(self.formatting)
+        self.bullets = [("auto", "Automatisch (• in Chats und E-Mails, - in Editoren)"), ("•", "• Punkt"),
+                        ("-", "- Strich (Markdown)")]
+        self.bullet = Adw.ComboRow(title="Aufzählungszeichen", model=Gtk.StringList.new([b[1] for b in self.bullets]))
+        self.bullet.connect("notify::selected", self._cleanup_changed)
+        g.add(self.bullet)
         self.cleanup_model = Adw.ComboRow(title="Modell für Diktate", subtitle="klein = schnell")
         self.cleanup_model.connect("notify::selected", self._llm_changed)
         g.add(self.cleanup_model)
@@ -181,6 +191,8 @@ class SettingsPage(Page):
         self.maxmin.set_value(c["audio"]["max_minutes"])
         self.engine.set_selected(next((i for i, e in enumerate(self.engines) if e[0] == c["asr"]["engine"]), 0))
         self.level.set_selected(next((i for i, e in enumerate(self.levels) if e[0] == c["cleanup"]["level"]), 2))
+        self.formatting.set_active(c["cleanup"]["smart_formatting"])
+        self.bullet.set_selected(next((i for i, b in enumerate(self.bullets) if b[0] == c["cleanup"]["bullet"]), 0))
         self.models = self.safe("models.list") or [c["llm"]["cleanup_model"]]
         for row, cur in ((self.cleanup_model, c["llm"]["cleanup_model"]), (self.command_model, c["llm"]["command_model"])):
             row.set_model(Gtk.StringList.new(self.models))
@@ -218,7 +230,9 @@ class SettingsPage(Page):
                    "Engine gewechselt – Modell wird geladen …")
 
     def _cleanup_changed(self, *_):
-        self._save("cleanup", {"level": self.levels[self.level.get_selected()][0]})
+        self._save("cleanup", {"level": self.levels[self.level.get_selected()][0],
+                               "smart_formatting": self.formatting.get_active(),
+                               "bullet": self.bullets[self.bullet.get_selected()][0]})
 
     def _llm_changed(self, *_):
         if not getattr(self, "models", None):

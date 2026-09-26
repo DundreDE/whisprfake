@@ -17,6 +17,7 @@ dependencies = [
   "platformdirs>=4.2",
   "soundfile>=0.12",
   "sherpa-onnx>=1.10",
+  "spylls>=0.1.7",
 ]
 
 [project.scripts]

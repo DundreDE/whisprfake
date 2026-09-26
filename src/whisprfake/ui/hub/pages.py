@@ -388,6 +388,20 @@ class DictionaryPage(Page):
         self.term.connect("entry-activated", self._add)
         addg.add(btn)
         self.page.add(addg)
+        builtin = Adw.PreferencesGroup(title="Mitgelieferte Wörterbücher")
+        r1 = Adw.ActionRow(title="Rechtschreibung Deutsch + Englisch",
+                           subtitle="Hunspell (LibreOffice) – erkennt verhörte Wörter und gleicht sie mit deinem Wörterbuch ab")
+        r1.add_prefix(Gtk.Image(icon_name="tools-check-spelling-symbolic"))
+        builtin.add(r1)
+        r2 = Adw.ActionRow(title="Anglizismen in Duden-Schreibweise",
+                           subtitle="„email“ → E-Mail, „know how“ → Know-how, „home office“ → Homeoffice …",
+                           activatable=True)
+        r2.add_prefix(Gtk.Image(icon_name="accessories-dictionary-symbolic"))
+        r2.add_suffix(Gtk.Label(label="eigene ergänzen", css_classes=["dim-label"]))
+        r2.add_suffix(Gtk.Image(icon_name="document-edit-symbolic"))
+        r2.connect("activated", lambda *_: self._edit_anglicisms())
+        builtin.add(r2)
+        self.page.add(builtin)
         self.sugg = Adw.PreferencesGroup(title="Vorschläge", description="Wörter, die du nach dem Diktieren korrigiert hast")
         self.page.add(self.sugg)
         self.search = Gtk.SearchEntry(placeholder_text="Suchen …", valign=Gtk.Align.CENTER)
@@ -433,6 +447,16 @@ class DictionaryPage(Page):
             row.add_suffix(star)
             row.add_suffix(icon_button("user-trash-symbolic", "Entfernen", self._remove, t["id"]))
             add(self.list, row)
+
+    def _edit_anglicisms(self):
+        from ...pipeline.lexicon import USER_ANGLICISMS
+
+        if not USER_ANGLICISMS.exists():
+            USER_ANGLICISMS.parent.mkdir(parents=True, exist_ok=True)
+            USER_ANGLICISMS.write_text("# Eigene Anglizismen / Schreibweisen, eine pro Zeile (Nomen groß, Verben klein).\n"
+                                       "# Beispiel:\n# Work-Life-Balance\n# Call-Center\n")
+        subprocess.Popen(["xdg-open", str(USER_ANGLICISMS)])
+        self.toast("Nach dem Speichern: Einstellungen › Dienst neu starten")
 
     def _resolve(self, sid, accept):
         self.safe("suggestions.resolve", {"id": sid, "accept": accept})

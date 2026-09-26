@@ -101,10 +101,14 @@ def _sound_ratio(a: str, b: str) -> float:
     return fuzz.ratio(jellyfish.metaphone(a), jellyfish.metaphone(b))
 
 
-def _score(cand: str, term: str, tw: list[str]) -> int:
-    """0 = no match, otherwise a similarity score (higher is better)."""
+def _score(cand: str, term: str, tw: list[str], loose: bool = False) -> int:
+    """0 = no match, otherwise a similarity score (higher is better). `loose` = the candidate contains a
+    word that exists in no dictionary (likely misheard), so a weaker resemblance is enough."""
     joined, target = cand.replace(" ", "").lower(), term.replace(" ", "").lower()
     score = int(fuzz.ratio(joined, target))
+    if loose and len(target) >= 5 and joined[:1] == target[:1]:
+        if score >= 66 or (score >= 55 and _sound_ratio(joined, target) >= 75):
+            return score
     same_len = len(cand.split()) == len(tw)
     short = len(target) < 6
     if same_len and (score >= 88 or (score >= (82 if short else 72) and _phonetic_match(cand, term))
@@ -120,8 +124,10 @@ def _score(cand: str, term: str, tw: list[str]) -> int:
     return 0
 
 
-def correct(text: str, terms: list[Term]) -> str:
-    """Replace phonetic near-misses of dictionary terms (1-3 word windows)."""
+def correct(text: str, terms: list[Term], unknown: set[str] | None = None) -> str:
+    """Replace phonetic near-misses of dictionary terms (1-3 word windows). Windows containing a word from
+    `unknown` (not in any language dictionary) are matched more generously."""
+    unknown = {u.lower() for u in (unknown or set())}
     for t in terms:
         tw = t.term.split()
         # explicit sounds-like: exact case-insensitive replacement
@@ -140,7 +146,7 @@ def correct(text: str, terms: list[Term]) -> str:
                 if cand.lower() == t.term.lower():
                     sc = 0 if t.term.lower() in COMMON_WORDS else 100
                 else:
-                    sc = _score(cand, t.term, tw)
+                    sc = _score(cand, t.term, tw, loose=any(x.group(0).lower() in unknown for x in span))
                 if sc:
                     cands.append((sc, span[0].start(), span[-1].end()))
         used: list[tuple[int, int]] = []

@@ -86,3 +86,44 @@ def test_dictionary_no_false_positives():
     for s in ["The cursor is blinking in the editor.", "Ich habe Rast gemacht und dann weiter.",
               "Der Docker Container startet nicht.", "Ich gehe heute noch zur Post.", "How do you react to that?"]:
         assert dictionary.correct(s, T) == s, s
+
+
+def test_format_lists_ordinals():
+    t = "Hallo, ich habe eine Liste an Sachen, die geändert werden müssen. Erstens, ich bin CUDA. Zweitens, du bist CUDA. Drittens, alle werden CUDA."
+    assert rules.format_lists(t) == ("Hallo, ich habe eine Liste an Sachen, die geändert werden müssen:\n"
+                                     "- Ich bin CUDA\n- Du bist CUDA\n- Alle werden CUDA")
+    t2 = "The plan: first, update the docs, second, ship it and third, tell the team."
+    assert rules.format_lists(t2) == "The plan:\n- Update the docs\n- Ship it\n- Tell the team"
+    assert rules.format_lists("Das war das erste Mal, dass ich zweitens gesagt habe.") == \
+        "Das war das erste Mal, dass ich zweitens gesagt habe."
+
+
+def test_format_lists_bullet_words():
+    t = "Morgen muss ich Stichpunkt einkaufen gehen Stichpunkt Steuer machen Stichpunkt Oma anrufen"
+    assert rules.format_lists(t) == "Morgen muss ich:\n- Einkaufen gehen\n- Steuer machen\n- Oma anrufen"
+
+
+def test_set_bullets():
+    assert rules.set_bullets("Liste:\n- A\n* B\n• C", "•") == "Liste:\n• A\n• B\n• C"
+
+
+def test_anglicisms():
+    from whisprfake.pipeline.lexicon import Lexicon
+
+    L = Lexicon()
+    assert L.normalize_anglicisms("die email mit dem know how") == "die E-Mail mit dem Know-how"
+    assert L.normalize_anglicisms("Cool, okay") == "Cool, okay"
+    assert L.normalize_anglicisms('Mach mal git commit -m "fix typo" und dann git push.') == \
+        'Mach mal git commit -m "fix typo" und dann git push.'
+    assert L.normalize_anglicisms("Der commit und das update") == "Der Commit und das Update"
+
+
+def test_colon_lists():
+    t = "Für das Projekt brauchen wir noch folgende Punkte: ein Login mit Google, eine Suchfunktion, einen Dark Mode und Export als PDF."
+    assert rules.format_lists(t) == ("Für das Projekt brauchen wir noch folgende Punkte:\n- Ein Login mit Google\n"
+                                     "- Eine Suchfunktion\n- Einen Dark Mode\n- Export als PDF")
+    t2 = "The pros are: it's fast, it's local and it's free. The cons are: it needs a GPU and setup takes time."
+    assert rules.format_lists(t2) == ("The pros are:\n- It's fast\n- It's local\n- It's free\n\nThe cons are:\n"
+                                      "- It needs a GPU\n- Setup takes time")
+    assert rules.format_lists("Ich brauche noch Milch, Eier und Brot.") == "Ich brauche noch Milch, Eier und Brot."
+    assert rules.format_lists("Wichtig: morgen früh anrufen.") == "Wichtig: morgen früh anrufen."
